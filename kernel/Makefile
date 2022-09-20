@@ -7,7 +7,7 @@ BUILD_DIR := build
 
 CXX_FLAGS := -ffreestanding -fno-pie -nostdlib -static
 AS_FLAGS :=
-LD_FLAGS := -Ttext=0x1000 --oformat binary -I$(LIB_DIR)/
+LD_FLAGS := -e main -Ttext=0x1000 --oformat binary -I$(LIB_DIR)/
 
 CPP_FILES := $(wildcard $(SRC_DIR)/*.cpp)
 ASM_FILES := $(wildcard $(SRC_DIR)/*.asm)
@@ -26,7 +26,7 @@ assembly_x86: $(ASM_FILES)
 	$(AS) $(AS_FLAGS) -f elf32 $< -o $(patsubst $(SRC_DIR)/%.asm,$(OBJ_DIR)/%.o,$<)
 
 link_x86: $(OBJ_FILES)
-	$(LD) $(LD_FLAGS) -m elf_i386 $< -o $(BUILD_DIR)/$(KERNEL)
+	$(LD) $(LD_FLAGS) -m elf_i386 obj/kernel_entry.o obj/kernel.o -o $(BUILD_DIR)/$(KERNEL)
 
 build_x86: $(SRC_FILES)
 	@$(MAKE) --no-print-directory compile_x86
