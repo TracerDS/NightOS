@@ -2,11 +2,6 @@ ENTRY(_start)
 OUTPUT_FORMAT(elf32-i386)
 STARTUP(obj/kernel_entry.o)
 
-INPUT (
-	obj/kernel_entry.o
-	obj/kernel.o
-)
-
 MEMORY {
 	KERNEL (rwx) : org = 0x1000, len = 1024
 }

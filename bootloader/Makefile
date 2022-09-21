@@ -6,6 +6,7 @@ BOOT_X86_64 := boot_x86_64
 
 build_x86: $(BOOT_X86).asm
 	$(AS) $(AS_FLAGS) $< -o $(BOOT_X86).bin
+	$(AS) -f elf kernel_entry.asm -o kernel_entry.o
 
 build_x86_64: $(BOOT_X86_64).asm
 	$(AS) $(AS_FLAGS) $< -o $(BOOT_X86_64).bin
