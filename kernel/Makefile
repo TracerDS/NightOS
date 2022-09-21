@@ -26,7 +26,7 @@ assembly_x86: $(ASM_FILES)
 	$(AS) $(AS_FLAGS) -f elf32 $< -o $(patsubst $(SRC_DIR)/%.asm,$(OBJ_DIR)/%.o,$<)
 
 link_x86: $(OBJ_FILES)
-	$(LD) $(LD_FLAGS) -m elf_i386 obj/kernel_entry.o obj/kernel.o -o $(BUILD_DIR)/$(KERNEL)
+	$(LD) $(LD_FLAGS) -m elf_i386 -T x86.ld -o $(BUILD_DIR)/$(KERNEL)
 
 build_x86: $(SRC_FILES)
 	@$(MAKE) --no-print-directory compile_x86
@@ -41,7 +41,7 @@ assembly_x86_64: $(ASM_FILES)
 	$(AS) $(AS_FLAGS) -f elf64 $< -o $(patsubst $(SRC_DIR)/%.asm,$(OBJ_DIR)/%.o,$<)
 
 link_x86_64: $(OBJ_FILES)
-	$(LD) $(LD_FLAGS) -m elf $< -o $(BUILD_DIR)/$(KERNEL)
+	$(LD) $(LD_FLAGS) -m elf $< -T x86_64.ld -o $(BUILD_DIR)/$(KERNEL)
 
 build_x86_64: $(SRC_FILES)
 	@$(MAKE) --no-print-directory compile_x86_64
