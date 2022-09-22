@@ -5,7 +5,7 @@ LIB_DIR := include
 OBJ_DIR := obj
 DRIVERS_DIR := ../drivers/obj
 
-CXX_FLAGS := -ffreestanding -fno-pie -nostdlib -static
+CXX_FLAGS := -ffreestanding -fno-pie -nostdlib -static -I$(LIB_DIR)/
 AS_FLAGS :=
 LD_FLAGS := -e main -Ttext=0x1000 --oformat binary -I$(LIB_DIR)/
 
