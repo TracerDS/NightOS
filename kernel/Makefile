@@ -3,7 +3,6 @@ AS := nasm
 SRC_DIR := src
 LIB_DIR := include
 OBJ_DIR := obj
-BUILD_DIR := build
 DRIVERS_DIR := ../drivers/obj
 
 CXX_FLAGS := -ffreestanding -fno-pie -nostdlib -static
@@ -28,7 +27,7 @@ assembly_x86: $(ASM_FILES)
 	$(AS) $(AS_FLAGS) -f elf32 $< -o $(patsubst $(SRC_DIR)/%.asm,$(OBJ_DIR)/%.o,$<)
 
 link_x86: $(OBJ_FILES) $(DRIVERS_OBJ)
-	$(LD) $(LD_FLAGS) -m elf_i386 -T x86.ld $^ -o $(BUILD_DIR)/$(KERNEL)
+	$(LD) $(LD_FLAGS) -m elf_i386 -T x86.ld $^ -o $(OBJ_DIR)/$(KERNEL)
 
 build_x86: $(SRC_FILES)
 	@$(MAKE) --no-print-directory compile_x86
