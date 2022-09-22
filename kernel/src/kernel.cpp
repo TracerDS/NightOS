@@ -1,13 +1,19 @@
 #include "../../drivers/include/driver.hpp"
+#include "../include/cursor.hpp"
 
 #define VGA_OFFSET ((char*) 0xB8000)
 static unsigned int __current_cursor_position = 0;
 
-static void WriteCharacter(unsigned char c, unsigned char forecolour, unsigned char backcolour, int x, int y) {
-    unsigned short attrib = (backcolour << 4) | (forecolour & 0x0F);
-    char* where;
-    where = VGA_OFFSET + (y * 80 + x);
-    *where = c | (attrib << 8);
+static void __set_cursor_position(unsigned char x, unsigned char y){
+    asm_write_byte(0x3D4, 0x0F);
+	asm_write_byte(0x3D5, x);
+	asm_write_byte(0x3D4, 0x0E);
+	asm_write_byte(0x3D5, y);
+}
+static void __reset_cursor(){
+    __current_cursor_position = 0;
+
+    __set_cursor_position(0,0);
 }
 static void putChar(char c, int offset){
     VGA_OFFSET[offset] = c;
@@ -15,6 +21,8 @@ static void putChar(char c, int offset){
 }
 static void print(char c){
     putChar(c, __current_cursor_position);
+    //__set_cursor_position(__current_cursor_position);
+    //__Cursor::posX++;
     __current_cursor_position += 2;
 }
 static void print(char const* str){
@@ -26,12 +34,12 @@ static void print(char const* str){
 void main() {
     /* Screen cursor position: ask VGA control register (0x3d4) for bytes
      * 14 = high byte of cursor and 15 = low byte of cursor. */
-    asm_write_byte(0x3d4, 0xE); /* Requesting byte 14: high byte of cursor pos */
+    asm_write_byte(0x3d4, 0x0E); /* Requesting byte 14: high byte of cursor pos */
     /* Data is returned in VGA data register (0x3d5) */
     unsigned char position = asm_read_byte(0x3d5);
     position = position << 8; /* high byte */
 
-    asm_write_byte(0x3d4, 0xF); /* requesting low byte */
+    asm_write_byte(0x3d4, 0x0F); /* requesting low byte */
     position += asm_read_byte(0x3d5);
 
     /* VGA 'cells' consist of the character and its control data
@@ -39,9 +47,9 @@ void main() {
     int offset_from_vga = position * 2;
 
     for(int i=0;i<1024;i++)
-        putChar('\0', i*2);
+        //putChar('\0', i*2);
+        print('\0');
     
-    print('a');
-    print('b');
-    print("cdef");
+    __reset_cursor();
+
 }
