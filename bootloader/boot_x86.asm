@@ -2,7 +2,7 @@
 KERNEL_OFFSET equ 0x1000 ; The same one we used when linking the kernel
 
 mov [BOOT_DRIVE], dl ; Remember that the BIOS sets us the boot drive in 'dl' on boot
-mov bp, 0x9000 ; set the stack
+mov bp, 0xB000 ; set the stack
 mov sp, bp
 
 mov bx, MSG_REAL_MODE 
@@ -48,4 +48,4 @@ MSG_LOAD_KERNEL db "Loading kernel into memory", 0
 
 ; bootsector
 times 510-($-$$) db 0
-dw 0xaa55
+dw 0xAA55

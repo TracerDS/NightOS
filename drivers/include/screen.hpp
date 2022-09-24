@@ -11,3 +11,5 @@
 void clear_screen();
 void kprint_at(const char* message, short x, short y);
 void kprint(const char* message);
+unsigned short print(char c, short x, short y, char attr);
+unsigned short print(const char* str, short x, short y, char attr);
