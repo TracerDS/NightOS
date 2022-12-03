@@ -1,6 +1,6 @@
 ENTRY(_start)
 OUTPUT_FORMAT(elf64-x86-64)
-STARTUP(../bootloader/kernel_entry.o)
+STARTUP(../bootloader/obj/kernel_entry.o)
 
 MEMORY {
 	KERNEL (rwx) : org = 0x1000, len = 10240

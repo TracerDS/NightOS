@@ -21,6 +21,7 @@ OBJ_FILES := $(CPP_OBJ) $(ASM_OBJ)
 KERNEL := kernel.bin
 
 compile_x86: $(CPP_FILES)
+	@mkdir -p obj
 	$(CXX) $(CXX_FLAGS) -m32 -c $< -o $(patsubst $(SRC_DIR)/%.cpp,$(OBJ_DIR)/%.o,$<)
 
 assembly_x86: $(ASM_FILES)
@@ -36,6 +37,7 @@ build_x86: $(SRC_FILES)
 
 
 compile_x86_64: $(CPP_FILES)
+	@mkdir -p obj
 	$(CXX) $(CXX_FLAGS) -m64 -c $< -o $(patsubst $(SRC_DIR)/%.cpp,$(OBJ_DIR)/%.o,$<)
 
 assembly_x86_64: $(ASM_FILES)

@@ -11,12 +11,7 @@ obj/%.o: src/%.cpp
 	$(CXX) $(CXX_FLAGS) -m32 -c $< -o $@
 
 build_x86: $(OBJ_FILES)
-
-build_x86_old: $(SRC_FILES)
-	$(CXX) $(CXX_FLAGS) -m32 -c $< -o $(patsubst $(SRC_DIR)/%.cpp,$(OBJ_DIR)/%.o,$<)
-
-build_x86_64: $(SRC_FILES)
-	$(CXX) $(CXX_FLAGS) -m64 -c $< -o $(patsubst $(SRC_DIR)/%.cpp,$(OBJ_DIR)/%.o,$<)
+	@mkdir -p obj
 
 clean:
 	rm -fr obj/* *.o
