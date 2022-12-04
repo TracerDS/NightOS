@@ -3,5 +3,5 @@
 bin/
 
 .gitignore
-*.bin
-*.o
+**/*.bin
+**/*.o

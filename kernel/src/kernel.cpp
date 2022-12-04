@@ -6,7 +6,7 @@ void main() {
     for (char* ptr = &_BSS_START_; ptr < &_BSS_END_; ptr++) {
         *ptr = 0;
     }
-    //clear_screen();
+    clear_screen();
     for(;;);
     //print("Hello, World",0,0,0);
     /*
