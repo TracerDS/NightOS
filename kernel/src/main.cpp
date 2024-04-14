@@ -50,6 +50,8 @@ void ktermPrint(const char* str, uint8_t color = TerminalState.color) {
 }
 
 void kprintf(const char* string, ...) {
+	(void*)(string);
+	/*
 	va_list args;
     va_start(args, string);
  
@@ -70,13 +72,21 @@ void kprintf(const char* string, ...) {
     }
  
     va_end(args);
+	*/
 }
+
+#include <assembly.h>
 
 void nos_kmain() {
 	TerminalState.x = 0;
 	TerminalState.y = 0;
 	TerminalState.buffer = (uint16_t*) VGA_ADDR;
 	TerminalState.color = vga_entry_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
+
+	int a = 0;
+	__asm__ __volatile__("mov %%eax, %0" : "+r"(&a));
+	__asm__ __volatile__("mov %0, %%eax" : "r"(2137));
+	__asm__ __volatile__("mov %%eax, %0" : "+r"(&a));
 
 	ktermPrint("Hello, World!\nabc");
 }

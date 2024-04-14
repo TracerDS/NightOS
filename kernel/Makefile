@@ -10,7 +10,7 @@ OUT_DIR := obj
 
 # FLAGS #
 SHARED_FLAGS := -ffreestanding
-CXXFLAGS := $(SHARED_FLAGS) -Wall -Wextra -fno-exceptions -fno-rtti -I$(HPP_DIR) -I../libc/include -g3
+CXXFLAGS := $(SHARED_FLAGS) -Wall -Wextra -fno-exceptions -fno-rtti -I$(HPP_DIR) -I../libc/include -g3 -std=c++20
 AS_FLAGS := 
 LD_FLAGS := 
 

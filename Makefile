@@ -4,7 +4,7 @@ AS := i686-elf-as
 LD := i686-elf-ld
 
 # FLAGS #
-LD_FLAGS := -T linker.ld -lgcc -ffreestanding -O2 -nostdlib 
+LD_FLAGS := -T linker.ld -lgcc -ffreestanding -O2 -nostdlib
 
 OUT_DIR := obj
 BIN_DIR := isodir
