@@ -5,4 +5,4 @@ objcopy --only-keep-debug NightOS.bin kernel.sym
 cp NightOS.bin isodir/boot/NightOS.bin
 grub-mkrescue -o NightOS.iso isodir
 
-./run-qemu.sh -s -S
+./run-qemu.sh -s -S -D log-qemu.txt -d int

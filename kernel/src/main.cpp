@@ -83,13 +83,9 @@ void nos_kmain() {
 	TerminalState.buffer = (uint16_t*) VGA_ADDR;
 	TerminalState.color = vga_entry_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
 
-	int a = 0;
-	__asm__ __volatile__("mov %%eax, %0" : "+r"(&a));
-	__asm__ __volatile__("mov %0, %%eax" : "r"(2137));
-	__asm__ __volatile__("mov %%eax, %0" : "+r"(&a));
-
 	ktermPrint("Hello, World!\nabc");
 }
+
 
 #ifdef __cplusplus
 }

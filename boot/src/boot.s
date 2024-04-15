@@ -46,4 +46,4 @@ doesn't make sense to return from this function as the bootloader is gone.
 Set the size of the _asm_start symbol to the current location '.' minus its start.
 This is useful when debugging or when you implement call tracing.
 */
-#.size _asm_start, . - _asm_start
+	.size _asm_start, . - _asm_start
