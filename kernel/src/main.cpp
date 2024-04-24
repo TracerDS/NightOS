@@ -5,6 +5,8 @@
 
 #include <vga.h>
 
+#include <gdt.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -78,6 +80,11 @@ void kprintf(const char* string, ...) {
 #include <assembly.h>
 
 void nos_kmain() {
+	GDT_Entry entry = GDT_CreateEntry(
+        GDT_AT_PRESENT | GDT_AT_READWRITE | GDT_PT_KERNEL | GDT_DT_SYSTEM | GDT_AT_EXECUTABLE | GDT_DIR_UP,
+        (GDT_F_GRANULARITY_PAGE | GDT_F_SIZE_32) << 4 | GDT_F_LIMIT
+    );
+
 	TerminalState.x = 0;
 	TerminalState.y = 0;
 	TerminalState.buffer = (uint16_t*) VGA_ADDR;
