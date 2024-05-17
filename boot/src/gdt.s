@@ -71,6 +71,7 @@ GDT_DataUser32:
     .byte 0
 
 GDT_End:
+.global GDT_Descriptor
 GDT_Descriptor:
     .word GDT_End - GDT_NULL - 1   // Limit (size of GDT - 1)
     .long GDT_NULL
@@ -78,11 +79,11 @@ GDT_Descriptor:
 .global _asm_loadGDT
 _asm_loadGDT:
     cmp %edi, %edi
-    jnz _asm_loadGDT_success
+    jz _asm_loadGDT_success
     mov $0x0, %eax
     jmp _asm_loadGDT_return
     _asm_loadGDT_success:
-        lgdt (%edi) // GDT_Descriptor
+        lgdt (%edi)
         jmp $0x08, $flush_pipeline
         mov $0x1, %eax
     _asm_loadGDT_return:

@@ -33,6 +33,11 @@ doesn't make sense to return from this function as the bootloader is gone.
 		mov $stack_bottom, %esp
 		mov $stack_top, %esp
 
+		// testing parameters
+		.extern GDT_Descriptor
+		mov GDT_Descriptor, %edi
+		call _asm_loadGDT
+
 		call nos_kmain
 
 		hang:
