@@ -1,3 +1,13 @@
-.vscode
-/**/**.bin
-/**/obj
+/*
+/*/
+
+*.sym
+*.iso
+*.bin
+*.o
+
+!/boot/*
+/boot/obj
+
+!/kernel/*
+/kernel/obj
