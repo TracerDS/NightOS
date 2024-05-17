@@ -66,42 +66,36 @@ __attribute__((packed)) GDT_Entry
 ;
 
 #ifdef __VSC_LINTER__
+struct TSS_Entry
+#else
+typedef struct
+#endif
+{
+    GDT_Entry entry;
+    uint32_t base;
+    uint32_t reserved;
+}
+#ifndef __VSC_LINTER__
+__attribute__((packed)) TSS_Entry
+#endif
+;
+
+#ifdef __VSC_LINTER__
 struct GDT_Descriptor
 #else
 typedef struct
 #endif
 {
     uint16_t limit;
-    GDT_Entry* entry;
+    uintptr_t entry;
 }
 #ifndef __VSC_LINTER__
 __attribute__((packed)) GDT_Descriptor
 #endif
 ;
 
-GDT_Entry GDT_CreateEntry(const uint8_t base, const uint8_t limit, const uint8_t access, const uint8_t flags = 0) {
-    GDT_Entry entry = {
-        .limit_lo = limit & 0xFFFF,
-        .base_lo = base & 0xFFFFFF,
-        .access = access,
-        .limit_hi = (limit >> 16) & 0xF,
-        .flags = flags,
-        .base_hi = (base >> 24) & 0xFF,
-    };
-    return entry;
-}
-
-GDT_Descriptor GDT_CreateDescriptor(GDT_Entry* entry) {
-    GDT_Descriptor descriptor;
-
-    if(!entry)
-        return descriptor;
-
-    descriptor.entry = entry;
-    return descriptor;
-}
-
-extern GDT_Entry g_GDT[5];
+GDT_Descriptor GDT_Init();
+GDT_Entry GDT_CreateEntry(const uint8_t base, const uint16_t limit, const uint8_t access, const uint8_t flags = 0);
 
 #ifdef __cplusplus
 }

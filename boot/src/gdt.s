@@ -43,7 +43,7 @@ GDT_CodeKernel32:
     .word 0
     .byte 0
     .byte GDT_ACCESS_DEFAULT | GDT_ACCESS_SYSTEM_KERNEL | GDT_ACCESS_EXECUTABLE | GDT_ACCESS_DIRECTION_UP
-    .byte (GDT_FLAGS_GRANULARITY_PAGE | GDT_FLAGS_32BIT_SEGMENT) << 4 | GDT_FLAGS_LIMIT
+    .byte GDT_FLAGS_GRANULARITY_PAGE | GDT_FLAGS_32BIT_SEGMENT | GDT_FLAGS_LIMIT
     .byte 0
 
 GDT_DataKernel32:
@@ -51,7 +51,7 @@ GDT_DataKernel32:
     .word 0
     .byte 0
     .byte GDT_ACCESS_DEFAULT | GDT_ACCESS_SYSTEM_KERNEL | GDT_ACCESS_NON_EXECUTABLE | GDT_ACCESS_DIRECTION_UP
-    .byte (GDT_FLAGS_GRANULARITY_PAGE | GDT_FLAGS_32BIT_SEGMENT) << 4 | GDT_FLAGS_LIMIT
+    .byte GDT_FLAGS_GRANULARITY_PAGE | GDT_FLAGS_32BIT_SEGMENT | GDT_FLAGS_LIMIT
     .byte 0
 
 GDT_CodeUser32:
@@ -59,7 +59,7 @@ GDT_CodeUser32:
     .word 0
     .byte 0
     .byte GDT_ACCESS_DEFAULT | GDT_ACCESS_USER_KERNEL | GDT_ACCESS_EXECUTABLE | GDT_ACCESS_DIRECTION_UP
-    .byte (GDT_FLAGS_GRANULARITY_PAGE | GDT_FLAGS_32BIT_SEGMENT) << 4 | GDT_FLAGS_LIMIT
+    .byte GDT_FLAGS_GRANULARITY_PAGE | GDT_FLAGS_32BIT_SEGMENT | GDT_FLAGS_LIMIT
     .byte 0
 
 GDT_DataUser32:
@@ -67,7 +67,7 @@ GDT_DataUser32:
     .word 0
     .byte 0
     .byte GDT_ACCESS_DEFAULT | GDT_ACCESS_USER_KERNEL | GDT_ACCESS_NON_EXECUTABLE | GDT_ACCESS_DIRECTION_UP
-    .byte (GDT_FLAGS_GRANULARITY_PAGE | GDT_FLAGS_32BIT_SEGMENT) << 4 | GDT_FLAGS_LIMIT
+    .byte GDT_FLAGS_GRANULARITY_PAGE | GDT_FLAGS_32BIT_SEGMENT | GDT_FLAGS_LIMIT
     .byte 0
 
 GDT_End:
@@ -75,19 +75,18 @@ GDT_Descriptor:
     .word GDT_End - GDT_NULL - 1   // Limit (size of GDT - 1)
     .long GDT_NULL
 
-// Function to enable protected mode
-.global enable_pmode
-enable_pmode:
-    // Load GDT
-    lgdt GDT_Descriptor
-    
-    // Enable protected mode
-    movl %cr0, %eax
-    orl $0x1, %eax
-    movl %eax, %cr0
-
-    // Jump to next instruction to flush the pipeline
-    jmp $0x08, $flush_pipeline
+.global _asm_loadGDT
+_asm_loadGDT:
+    cmp %edi, %edi
+    jnz _asm_loadGDT_success
+    mov $0x0, %eax
+    jmp _asm_loadGDT_return
+    _asm_loadGDT_success:
+        lgdt (%edi) // GDT_Descriptor
+        jmp $0x08, $flush_pipeline
+        mov $0x1, %eax
+    _asm_loadGDT_return:
+        ret
 
 flush_pipeline:
     mov $0x10, %eax
@@ -96,4 +95,12 @@ flush_pipeline:
     mov %eax, %fs
     mov %eax, %gs
     mov %eax, %ss
+    ret
+
+// Function to enable protected mode
+.global enable_pmode
+enable_pmode:
+    movl %cr0, %eax
+    orl $0x1, %eax
+    movl %eax, %cr0
     ret

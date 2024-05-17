@@ -79,11 +79,11 @@ void kprintf(const char* string, ...) {
 
 #include <assembly.h>
 
+extern bool _asm_loadGDT(void* gdt);
+
 void nos_kmain() {
-	GDT_Entry entry = GDT_CreateEntry(
-        GDT_AT_PRESENT | GDT_AT_READWRITE | GDT_PT_KERNEL | GDT_DT_SYSTEM | GDT_AT_EXECUTABLE | GDT_DIR_UP,
-        (GDT_F_GRANULARITY_PAGE | GDT_F_SIZE_32) << 4 | GDT_F_LIMIT
-    );
+	auto GDT = GDT_Init();
+	auto val = _asm_loadGDT(&GDT);
 
 	TerminalState.x = 0;
 	TerminalState.y = 0;
