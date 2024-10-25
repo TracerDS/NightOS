@@ -1,3 +1,4 @@
+//.intel_syntax noprefix
 .set ALIGN,    1<<0             /* align loaded modules on page boundaries */
 .set MEMINFO,  1<<1             /* provide memory map */
 .set FLAGS,    ALIGN | MEMINFO  /* this is the Multiboot 'flag' field */
@@ -62,7 +63,7 @@ doesn't make sense to return from this function as the bootloader is gone.
 		stack (as it grows downwards on x86 systems). This is necessarily done
 		in assembly as languages such as C cannot function without a stack.
 		*/
-		mov $stack_top, %esp
+		mov esp, stack_top
 
 		/*
 		This is a good place to initialize crucial processor state before the
