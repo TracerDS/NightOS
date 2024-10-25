@@ -1,9 +1,12 @@
+#include <cpp.hpp>
 #include <stddef.h>
 #include <stdint.h>
 
 #include <string.h>
 
-extern "C" {
+#include <gdt.hpp>
+
+__CPP_START__
 
 /* Hardware text mode color constants. */
 enum vga_color {
@@ -97,12 +100,69 @@ void terminal_writestring(const char* data)
 	terminal_write(data, strlen(data));
 }
 
+void terminal_writenumber(uint64_t number) {
+	static constexpr auto digits = "0123456789ABCDEF";
+
+	terminal_writestring("0x");
+
+	do {
+		terminal_putchar(digits[number % 16]);
+		number /= 16;
+	}while(number > 0);
+}
+
+__CPP_END__
+
+template <typename T>
+void terminal_write(T) {}
+
+template <> void terminal_write(uint64_t value) { terminal_writenumber(value); }
+template <> void terminal_write(uint32_t value) { terminal_writenumber(value); }
+template <> void terminal_write(uint16_t value) { terminal_writenumber(value); }
+template <> void terminal_write(uint8_t value)  { terminal_writenumber(value); }
+
+template <> void terminal_write(const char* value) { terminal_writestring(value); }
+template <> void terminal_write(const char value)  { terminal_putchar(value); }
+
+__CPP_START__
+
+#define STR_HELPER(x) #x
+#define STR(x) STR_HELPER(x)
+
 void kernel_main() 
 {
-	/* Initialize terminal interface */
 	terminal_initialize();
+	terminal_write(STR(__cplusplus));
+	terminal_write("\r\n");
 
-	/* Newline support is left as an exercise. */
-	terminal_writestring("Hello, kernel World!\n");
+	const GDT::GDT_Descriptor* descriptor = GDT::GDT_GetDescriptor();
+	GDT::GDT_Entry* entries = (GDT::GDT_Entry*)descriptor->entry;
+
+	if(!descriptor->entry) {
+		terminal_write("GDT Entries are null\r\n");
+		return;
+	}
+	
+	auto entries_count = (descriptor->limit + 1) / sizeof(GDT::GDT_Entry);
+	terminal_write("GDT Entries: ");
+	terminal_write(entries_count);
+	terminal_write("\r\n");
+
+	for(uint16_t i = 0; i < entries_count; i++) {
+		GDT::GDT_Entry entry = entries[i];
+		terminal_write("GDT Entry ");
+		terminal_putchar(i + '0');
+		terminal_write(": [");
+		terminal_write(*reinterpret_cast<uint64_t*>(&entry));
+		terminal_write("]\r\n");
+	}
+
+	if(true) {
+		terminal_write("GDT status: ");
+		bool status = GDT::GDT_Initialize();
+		terminal_write(status ? "true" : "false");
+		terminal_write("\r\n");
+	}
 }
-}
+
+__CPP_END__

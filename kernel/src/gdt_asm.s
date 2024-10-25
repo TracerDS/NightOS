@@ -1,33 +1,33 @@
 .intel_syntax noprefix
-.section text
+.section .text
     .global _loadGDT
     .type _loadGDT, @function
+    // __cdecl _loadGDT ( GDT_Descriptor* descriptor )
     _loadGDT:
-        push rbp
-        mov rbp, rsp
+        push ebp
+        mov ebp, esp
 
-        mov [rbp - 4], edi
-        test [rbp - 4], 0
+        jmp _loadGDT_ret
+
+        mov eax, [ebp + 8]
+        test eax, eax
         jz _loadGDT_ret
 
-        # edi - 1 param
-        lgdt [edi]
+        lgdt [eax]
 
-    _loadGDT_ret:
-        pop rbp
-        ret
-    
-    .global _reloadGDTSegments
-    .type _reloadGDTSegments, @function
-    _reloadGDTSegments:
         push 0x8
-        lea rax, [._reloadGDTSegments_do]
-        push rax
-        ret
-    ._reloadGDTSegments_do:
+        lea eax, [._reloadGDTSegments]
+        push eax
+        retf
+    ._reloadGDTSegments:
         mov eax, 0x10
         mov ds, eax
         mov es, eax
         mov fs, eax
         mov gs, eax
         mov ss, eax
+        mov eax, 1
+
+    _loadGDT_ret:
+        pop ebp
+        ret
