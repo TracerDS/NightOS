@@ -31,15 +31,13 @@ SECTIONS
         *(.data.*)
     } :data
 
-    /*
-    .init_constructors_array :
+    .init_array :
     {
-        __init_constructors_array_start = .;
-        KEEP(*(SORT(EXCLUDE_FILE(crti.o crtn.o) .init_constructors_array.*)))
-        KEEP(*(EXCLUDE_FILE(crti.o crtn.o) .init_constructors_array))
-        __init_constructors_array_end = .;
+        __init_array_start = .;
+        KEEP(*(SORT_BY_INIT_PRIORITY(EXCLUDE_FILE(crti.o crtn.o) .init_array.*)))
+        KEEP(*(EXCLUDE_FILE(crti.o crtn.o) .init_array))
+        __init_array_end = .;
     } :data
-    */
 
     .bss ALIGN(4K) : 
     {
