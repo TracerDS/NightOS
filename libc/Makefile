@@ -23,6 +23,7 @@ $(OUT_DIR)/nightlibc.a: $(OUT_FILES)
 	ar rcs $@ $^
 
 $(OUT_DIR)/%.$(OUT_EXT): $(SRC_DIR)/%.$(SRC_EXT)
+	@mkdir -p $(OUT_DIR)
 	$(CXX) $(CXXFLAGS) $(SHFLAGS) -c $< -o $@
 
 clean:

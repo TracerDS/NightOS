@@ -14,8 +14,10 @@ all:
 	$(MAKE) bootloader
 	$(MAKE) libc
 	$(MAKE) kernel
+	$(MAKE) link
 
 link:
+	@mkdir -p $(OUT_DIR)
 	$(CXX) $(CXXFLAGS) \
 		$(wildcard bootloader/$(OUT_DIR)/*.$(OUT_EXT)) \
 		$(wildcard kernel/$(OUT_DIR)/*.$(OUT_EXT)) \

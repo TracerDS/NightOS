@@ -2,7 +2,7 @@ CXX := ~/opt/cross/bin/i686-elf-g++
 AS := ~/opt/cross/bin/i686-elf-as
 LD := ~/opt/cross/bin/i686-elf-ld
 
-CXXFLAGS := -ffreestanding -nostdlib -O2 -Wall -Wextra -fno-exceptions -fno-rtti -g -std=c++2b
+CXXFLAGS := -ffreestanding -nostdlib -O2 -Wall -Wextra -fno-exceptions -fno-rtti -g -std=c++2b -Wno-deprecated-enum-enum-conversion
 ASFLAGS :=
 
 SRC_DIR := src
@@ -24,9 +24,11 @@ CXXFLAGS += -I$(HPP_DIR) -I../libc/include
 all: $(OUT_SRC_FILES) $(OUT_ASM_FILES)
 
 $(OUT_SRC_FILES): $(SRC_FILES)
+	@mkdir -p $(OUT_DIR)
 	$(CXX) $(CXXFLAGS) -c $(patsubst $(OUT_DIR)/%.$(OUT_EXT),$(SRC_DIR)/%.$(SRC_EXT),$@) -o $@
 
 $(OUT_ASM_FILES): $(ASM_FILES)
+	@mkdir -p $(OUT_DIR)
 	$(AS) $(ASFLAGS) $(patsubst $(OUT_DIR)/%.$(OUT_EXT),$(SRC_DIR)/%.$(ASM_SRC_EXT),$@) -o $@
 
 print:

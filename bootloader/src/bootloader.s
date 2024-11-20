@@ -1,4 +1,3 @@
-//.intel_syntax noprefix
 .set ALIGN,    1<<0             /* align loaded modules on page boundaries */
 .set MEMINFO,  1<<1             /* provide memory map */
 .set FLAGS,    ALIGN | MEMINFO  /* this is the Multiboot 'flag' field */
@@ -33,7 +32,7 @@ undefined behavior.
 .section .bss
 	.align 16
 	stack_bottom:
-	.skip 16384 # 16 KiB
+		.skip 16384 # 16 KiB
 	stack_top:
 
 /*
@@ -63,7 +62,7 @@ doesn't make sense to return from this function as the bootloader is gone.
 		stack (as it grows downwards on x86 systems). This is necessarily done
 		in assembly as languages such as C cannot function without a stack.
 		*/
-		mov esp, stack_top
+		mov $stack_top, %esp
 
 		/*
 		This is a good place to initialize crucial processor state before the
