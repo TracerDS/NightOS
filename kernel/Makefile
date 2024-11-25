@@ -2,7 +2,9 @@ CXX := ~/opt/cross/bin/i686-elf-g++
 AS := ~/opt/cross/bin/i686-elf-as
 LD := ~/opt/cross/bin/i686-elf-ld
 
-CXXFLAGS := -ffreestanding -nostdlib -O2 -Wall -Wextra -fno-exceptions -fno-rtti -g -std=c++2b -Wno-deprecated-enum-enum-conversion
+CXXFLAGS := -ffreestanding -nostdlib -O2 -fno-exceptions -fno-rtti -g -std=c++2b \
+	-D_DEBUG \
+	-Wall -Wextra -Wno-deprecated-enum-enum-conversion
 ASFLAGS :=
 
 SRC_DIR := src

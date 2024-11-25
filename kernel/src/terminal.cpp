@@ -2,8 +2,8 @@
 #include <string.h>
 
 namespace Terminal {
-    static const size_t VGA_WIDTH = 80;
-    static const size_t VGA_HEIGHT = 25;
+    const size_t VGA_WIDTH = 80;
+    const size_t VGA_HEIGHT = 25;
 
     size_t terminal_row;
     size_t terminal_column;
@@ -88,6 +88,31 @@ namespace Terminal {
             terminal_putchar('0' + (number % 10));
             number /= 10;
         }
+    }
+    void terminal_writenumber(int32_t number) {
+        return terminal_writenumber((int64_t) number);
+    }
+    void terminal_writenumber(int16_t number) {
+        return terminal_writenumber((int64_t) number);
+    }
+    void terminal_writenumber(int8_t number) {
+        return terminal_writenumber((int64_t) number);
+    }
+
+    void terminal_writenumber(uint64_t number) {
+        while(number > 0) {
+            terminal_putchar('0' + (number % 10));
+            number /= 10;
+        }
+    }
+    void terminal_writenumber(uint32_t number) {
+        return terminal_writenumber((uint64_t) number);
+    }
+    void terminal_writenumber(uint16_t number) {
+        return terminal_writenumber((uint64_t) number);
+    }
+    void terminal_writenumber(uint8_t number) {
+        return terminal_writenumber((uint64_t) number);
     }
 
     void terminal_writehex(uint64_t number) {

@@ -34,7 +34,20 @@ namespace Terminal {
     void terminal_write(const char* data, size_t size);
 
     void terminal_writestring(const char* data);
+
+    void terminal_writenumber(uint64_t number);
+    void terminal_writenumber(uint32_t number);
+    void terminal_writenumber(uint16_t number);
+    void terminal_writenumber(uint8_t number);
+    
     void terminal_writenumber(int64_t number);
+    void terminal_writenumber(int32_t number);
+    void terminal_writenumber(int16_t number);
+    void terminal_writenumber(int8_t number);
+
+    inline void terminal_writenumber(int number) { terminal_writenumber((int32_t) number); }
+    inline void terminal_writenumber(unsigned int number) { terminal_writenumber((uint32_t) number); }
+
     void terminal_writehex(uint64_t number);
     void terminal_writefloat(float number);
     

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <cpp.hpp>
+#include <init.hpp>
 #include <stdint.h>
 
 __CPP_START__

@@ -14,35 +14,51 @@ SECTIONS
 
     .text ALIGN(4K) : 
     {
+        __text_start = .;
+
         *(.multiboot)
         *(.text)
         *(.text.*)
+
+        __text_end = .;
     } :text
 
     .rodata ALIGN(4K) : 
     {
+        __rodata_start = .;
+
+        __ctors_start = .;
+        *(.init_array)
+        __ctors_end = .;
+        
+        __dtors_start = .;
+        *(.fini_array)
+        __dtors_end = .;
+
         *(.rodata)
         *(.rodata.*)
+
+        __rodata_end = .;
     } :rodata
 
     .data ALIGN(4K) : 
     {
+        __data_start = .;
+
         *(.data)
         *(.data.*)
-    } :data
-
-    .init_array :
-    {
-        __init_array_start = .;
-        KEEP(*(SORT_BY_INIT_PRIORITY(EXCLUDE_FILE(crti.o crtn.o) .init_array.*)))
-        KEEP(*(EXCLUDE_FILE(crti.o crtn.o) .init_array))
-        __init_array_end = .;
+        
+        __data_end = .;
     } :data
 
     .bss ALIGN(4K) : 
     {
+        __bss_start = .;
+
         *(COMMON)
         *(.bss)
         *(.bss.*)
+
+        __bss_end = .;
     } :bss
 }

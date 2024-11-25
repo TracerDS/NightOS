@@ -1,4 +1,4 @@
-#include <cpp.hpp>
+#include <init.hpp>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -10,14 +10,16 @@
 __CPP_START__
 
 using __GlobalConstructorInit_t = void (*)();
-extern __GlobalConstructorInit_t __init_array_start[];
-extern __GlobalConstructorInit_t __init_array_end[];
+extern __GlobalConstructorInit_t* __ctors_start;
+extern __GlobalConstructorInit_t* __ctors_end;
 
 void __InitGlobalConstructors() {
-    for (auto fn = __init_array_start; fn != __init_array_end; ++fn) {
+    for (auto fn = __ctors_start; fn != __ctors_end; ++fn) {
+#ifdef __KERNEL_DEBUG
 		Terminal::terminal_write(" [Global Constructors] - Calling ");
-		Terminal::terminal_write(reinterpret_cast<uint64_t>(*fn));
+		Terminal::terminal_writehex(reinterpret_cast<uint64_t>(fn));
 		Terminal::terminal_write("\r\n");
+#endif
         (*fn)();
     }
 }
@@ -25,7 +27,6 @@ void __InitGlobalConstructors() {
 class A {
 public:
 	A() {
-		Terminal::terminal_initialize();
 		Terminal::terminal_write("A::A()\r\n");
 	}
 	~A() {
@@ -37,11 +38,7 @@ A a;
 void kernel_main() 
 {
 	Terminal::terminal_initialize();
-	{
-		//A b;
-	}
-	__InitGlobalConstructors();
-	
+	__InitGlobalConstructors();	
 
 	const GDT::GDT_Descriptor* descriptor = GDT::GDT_GetDescriptor();
 	GDT::GDT_Entry* entries = (GDT::GDT_Entry*)descriptor->entry;
