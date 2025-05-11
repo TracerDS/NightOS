@@ -1,0 +1,14 @@
+megs: 128
+romimage: file="D:\Program Files\BochsDebug\BIOS-bochs-latest"
+vgaromimage: file="D:\Program Files\BochsDebug\VGABIOS-lgpl-latest-debug.bin"
+
+#floppya:1_44=build/i686.NightOS.iso, status=inserted
+ata0: enabled=1, ioaddr1=0x1f0, ioaddr2=0x3f0, irq=14
+ata0-master: type=cdrom, path=build/i686.NightOS.iso, status=inserted
+boot: cdrom
+
+#debugger: enabled
+display_library: win32
+
+log: bochs_log.txt
+debugger_log: bochs_debug_log.txt

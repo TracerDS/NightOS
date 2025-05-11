@@ -1,0 +1,31 @@
+{
+    "configurations": [
+        {
+            "name": "OSDev",
+            "includePath": [
+                "${workspaceFolder}/*",
+                "${workspaceFolder}/**/**",
+                "/opt/cross/**"
+            ],
+            "defines": [
+                "__NOS_KERNEL_GDT_INCLUDE_32BIT_SEGMENT__"
+            ],
+            "compilerPath": "/opt/cross/bin/i686-elf-g++",
+            "intelliSenseMode": "windows-gcc-x86",
+            "compilerArgs": [
+                "-fno-exceptions",
+                "-fno-rtti",
+                "-std=c++2b",
+                "-ffreestanding",
+                "-nostdlib",
+                "-nostartfiles",
+                "-nodefaultlibs",
+                "-mno-red-zone",
+                "-U __linux__"
+            ],
+            "cStandard": "c23",
+            "cppStandard": "c++23"
+        }
+    ],
+    "version": 4
+}
