@@ -22,7 +22,7 @@ OPT_DIR := /opt/cross/bin/
 CXX := $(OPT_DIR)$(DEFAULT_ARCH)-elf-g++
 AS := $(OPT_DIR)$(DEFAULT_ARCH)-elf-as
 LD := $(OPT_DIR)$(DEFAULT_ARCH)-elf-ld
-LDFLAGS := -T linker.ld -O2 -nostdlib -L/opt/cross/lib/ -L/opt/cross/lib/$(DEFAULT_ARCH)-elf/
+LDFLAGS := -T linker.ld -O2 -nostdlib -L/opt/cross/lib/ -L/opt/cross/lib/gcc/$(DEFAULT_ARCH)-elf/15.1.0
 
 all: link-$(DEFAULT_ARCH)
 
