@@ -3,11 +3,14 @@
 #include <stdint.h>
 #include <gdt.hpp>
 #include <terminal.hpp>
+#include <crt.hpp>
 
 __CPP_START__
 
-void __kernel_main__() 
+void __kernel_main__(void* a, void* b) 
 {
+	_init();
+
 	// Initialize terminal interface
 	Terminal::Initialize();
 

@@ -1,8 +1,10 @@
-MBALIGN	 equ 1 << 0 			; align loaded modules on page boundaries
-MEMINFO	 equ 1 << 1 			; provide memory map
-MBFLAGS	 equ MBALIGN | MEMINFO 	; this is the Multiboot 'flag' field
-MAGIC	 equ 0x1BADB002 		; 'magic number' lets bootloader find the header
-CHECKSUM equ -(MAGIC + MBFLAGS) ; checksum of above, to prove we are multiboot
+%include "src/multiboot2.inc"
+
+MBALIGN	 equ 1 << 0				; align loaded modules on page boundaries
+MEMINFO	 equ 1 << 1				; provide memory map
+MBFLAGS	 equ MBALIGN | MEMINFO	; this is the Multiboot 'flag' field
+MAGIC	 equ 0xE85250D6			; 'magic number' lets bootloader find the header
+ARCHITECTURE equ 0
 
 ; Declare a multiboot header that marks the program as a kernel. These are magic
 ; values that are documented in the multiboot standard. The bootloader will
@@ -11,9 +13,25 @@ CHECKSUM equ -(MAGIC + MBFLAGS) ; checksum of above, to prove we are multiboot
 ; forced to be within the first 8 KiB of the kernel file.
 section .multiboot
 align 4
-	dd MAGIC
-	dd MBFLAGS
-	dd CHECKSUM
+multiboot_header:		
+	.start:
+		dd MAGIC
+		dd ARCHITECTURE
+		dd multiboot_header.end - multiboot_header.start
+		dd -(MAGIC + ARCHITECTURE + (multiboot_header.end - multiboot_header.start))
+framebuffer_tag:
+	.start:
+		dw MULTIBOOT_HEADER_TAG_FRAMEBUFFER
+		dw MULTIBOOT_HEADER_TAG_OPTIONAL
+        dd framebuffer_tag.end - framebuffer_tag.start
+        dd 1024
+        dd 768
+        dd 32
+	.end:
+        dw MULTIBOOT_HEADER_TAG_END
+        dw 0
+        dd 8
+multiboot_header.end:
 
 ; The multiboot standard does not define the value of the stack pointer register
 ; (esp) and it is up to the kernel to provide a stack. This allocates room for a
@@ -64,6 +82,9 @@ __bootloader_start__:
 	; C++ features such as global constructors and exceptions will require
 	; runtime support to work as well.
 
+
+	push ebx
+	push eax
 
 	; Enter the high-level kernel. The ABI requires the stack is 16-byte
 	; aligned at the time of the call instruction (which afterwards pushes

@@ -30,7 +30,8 @@ ASM_FILES := $(wildcard $(SRC_DIR)/*.$(ASM_EXT))
 OUT_FILES := $(patsubst $(SRC_DIR)/%.$(SRC_EXT),$(OUT_DIR)/%.$(OUT_EXT),$(SRC_FILES))
 
 compile: $(OUT_FILES)
-	$(CXX) $(CXXFLAGS) -o $(OUT_DIR)/kernel.bin $(OUT_FILES) -r
+	mv $(OUT_DIR)/crti.$(OUT_EXT) ../..
+	mv $(OUT_DIR)/crtn.$(OUT_EXT) ../..
 
 $(OUT_DIR)/%.$(OUT_EXT): $(SRC_DIR)/%.$(SRC_EXT)
 	@mkdir -p $(OUT_DIR)

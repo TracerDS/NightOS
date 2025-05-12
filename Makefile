@@ -46,11 +46,14 @@ $(ARCHS_LINK): $(ARCHS_COMPILE)
 	$(eval OS_PATH := $(BIN_DIR)/$(@:link-%=%).$(OS_NAME).$(OS_EXT))
 	@echo "Linking for architecture: $(__CURRENT_ARCH__)"
 	@mkdir -p $(BIN_DIR)
+
 	$(LD) $(LDFLAGS) -o $(OS_PATH) \
 		$(wildcard bootloader/$(__CURRENT_ARCH__)/$(OUT_DIR)/*.$(OUT_EXT)) \
 		$(wildcard kernel/$(__CURRENT_ARCH__)/$(OUT_DIR)/*.$(OUT_EXT)) \
+		crti.$(OUT_EXT) crtn.$(OUT_EXT) \
 	-lgcc
 	@echo "Linking complete. Making grub image..."
+	rm crti.$(OUT_EXT) crtn.$(OUT_EXT)
 	scripts/check_grub.sh $(OS_PATH)
 	scripts/make_grub_image.sh $(__CURRENT_ARCH__) $(OS_PATH)
 
