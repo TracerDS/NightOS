@@ -1,10 +1,14 @@
-%include "src/multiboot2.inc"
-
 MBALIGN	 equ 1 << 0				; align loaded modules on page boundaries
 MEMINFO	 equ 1 << 1				; provide memory map
-MBFLAGS	 equ MBALIGN | MEMINFO	; this is the Multiboot 'flag' field
-MAGIC	 equ 0xE85250D6			; 'magic number' lets bootloader find the header
-ARCHITECTURE equ 0
+VIDINFO	 equ 1 << 2
+MBFLAGS	 equ MBALIGN | MEMINFO | VIDINFO	; this is the Multiboot 'flag' field
+MAGIC	 equ 0x1BADB002			; 'magic number' lets bootloader find the header
+CHECKSUM equ -(MAGIC + MBFLAGS)	; checksum of the header
+
+FBMODE		equ 0		; Requested mode (0 for framebuffer)
+FBWIDTH		equ	1280	; Requested width (can be 0 for default)
+FBHEIGHT	equ	720		; Requested height (can be 0 for default)
+FBDEPTH		equ	32		; Requested depth (can be 0 for default)
 
 ; Declare a multiboot header that marks the program as a kernel. These are magic
 ; values that are documented in the multiboot standard. The bootloader will
@@ -13,25 +17,20 @@ ARCHITECTURE equ 0
 ; forced to be within the first 8 KiB of the kernel file.
 section .multiboot
 align 4
-multiboot_header:		
-	.start:
-		dd MAGIC
-		dd ARCHITECTURE
-		dd multiboot_header.end - multiboot_header.start
-		dd -(MAGIC + ARCHITECTURE + (multiboot_header.end - multiboot_header.start))
-framebuffer_tag:
-	.start:
-		dw MULTIBOOT_HEADER_TAG_FRAMEBUFFER
-		dw MULTIBOOT_HEADER_TAG_OPTIONAL
-        dd framebuffer_tag.end - framebuffer_tag.start
-        dd 1024
-        dd 768
-        dd 32
-	.end:
-        dw MULTIBOOT_HEADER_TAG_END
-        dw 0
-        dd 8
-multiboot_header.end:
+	dd MAGIC	; Magic number
+    dd MBFLAGS	; Flags
+    dd CHECKSUM	; Checksum
+    
+    ; Framebuffer request tag
+	dd 0		; Unused
+	dd 0		; Unused
+	dd 0		; Unused
+	dd 0		; Unused
+	dd 0		; Unused
+	dd FBMODE	; Requested mode
+    dd FBWIDTH	; Requested width
+    dd FBHEIGHT	; Requested height
+    dd FBDEPTH	; Requested depth
 
 ; The multiboot standard does not define the value of the stack pointer register
 ; (esp) and it is up to the kernel to provide a stack. This allocates room for a

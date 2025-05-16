@@ -5,7 +5,7 @@ if [[ $1 = "" ]]; then
     exit 1
 fi
 
-if grub-file --is-x86-multiboot2 $1; then
+if grub-file --is-x86-multiboot $1; then
     echo "$1 has multiboot"
     exit 0
 else
