@@ -1,6 +1,6 @@
 section .text
 
-global __kernel_loadGDT__:function (__kernel_loadGDT__.end - __kernel_loadGDT__)
+global __kernel_loadGDT__:function (__kernel_loadGDT__.end - __kernel_loadGDT__.start)
 __kernel_loadGDT__:
     .start:
         push ebp
