@@ -1,7 +1,7 @@
 MBALIGN	 equ 1 << 0				; align loaded modules on page boundaries
 MEMINFO	 equ 1 << 1				; provide memory map
 VIDINFO	 equ 1 << 2
-MBFLAGS	 equ MBALIGN | MEMINFO | VIDINFO	; this is the Multiboot 'flag' field
+MBFLAGS	 equ MBALIGN | MEMINFO	; this is the Multiboot 'flag' field
 MAGIC	 equ 0x1BADB002			; 'magic number' lets bootloader find the header
 CHECKSUM equ -(MAGIC + MBFLAGS)	; checksum of the header
 
@@ -53,6 +53,8 @@ stack_top:
 ; doesn't make sense to return from this function as the bootloader is gone.
 section .text
 extern __kernel_main__
+extern crt_init
+extern crt_fini
 
 global __bootloader_start__:function (__bootloader_start__.end - __bootloader_start__)
 __bootloader_start__:
@@ -81,9 +83,13 @@ __bootloader_start__:
 	; C++ features such as global constructors and exceptions will require
 	; runtime support to work as well.
 
+	; Save parameters from the bootloader
+	mov edi, eax
+
+	call crt_init
 
 	push ebx
-	push eax
+	push edi
 
 	; Enter the high-level kernel. The ABI requires the stack is 16-byte
 	; aligned at the time of the call instruction (which afterwards pushes
@@ -92,6 +98,8 @@ __bootloader_start__:
 	; stack since (pushed 0 bytes so far), so the alignment has thus been
 	; preserved and the call is well defined.
 	call __kernel_main__
+
+	call crt_fini
 
 	; If the system has nothing more to do, put the computer into an
 	; infinite loop. To do that:

@@ -1,3 +1,8 @@
 #!/bin/bash
 
-qemu-system-i386 -vga virtio -cdrom build/i686.NightOS.iso $*
+if [ -z "$1" ]; then
+    echo "Usage: $0 <target>"
+    exit 1
+fi
+
+qemu-system-i386 -vga virtio -cdrom $*

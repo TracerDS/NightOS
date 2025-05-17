@@ -1,4 +1,12 @@
 #!/bin/bash
 
-objcopy --only-keep-debug build/i686.NightOS.bin build/i686.NightOS.sym
-objcopy --strip-debug build/i686.NightOS.bin
+target=$1
+if [ -z "$target" ]; then
+    echo "Usage: $0 <target>"
+    exit 1
+fi
+
+symbol_target="${target%.*}.sym"
+
+objcopy --only-keep-debug $target $symbol_target
+objcopy --strip-debug $target

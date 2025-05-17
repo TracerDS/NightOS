@@ -10,5 +10,5 @@ boot: cdrom
 #debugger: enabled
 display_library: win32
 
-log: bochs_log.txt
-debugger_log: bochs_debug_log.txt
+log: logs/bochs_log.txt
+debugger_log: logs/bochs_debug_log.txt
