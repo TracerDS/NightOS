@@ -26,7 +26,7 @@ CXXFLAGS :=
 ASFLAGS := 
 LDFLAGS := -T linker.$(LNK_EXT) -O2 -nostdlib -L$(OPT_DIR)../lib -L$(OPT_DIR)../lib/gcc/$(CROSS_PREFIX)/$(GCC_VERSION)
 
-CRT_OBJS := crti.$(OUT_EXT) crtn.$(OUT_EXT)
+CRT_OBJS := crt.$(OUT_EXT)
 
 BOOTLOADER_DIR := bootloader
 KERNEL_DIR := kernel

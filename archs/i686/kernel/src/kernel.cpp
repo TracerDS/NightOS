@@ -3,7 +3,6 @@
 #include <cstdint>
 #include <gdt.hpp>
 #include <terminal.hpp>
-#include <crt.hpp>
 
 #include <video/pixels.hpp>
 #include <grub/multiboot.hpp>
@@ -16,21 +15,8 @@ __CPP_START__
 #define COLOR_GREEN     0x0000FF00
 #define COLOR_BLUE      0x000000FF
 
-class A
-{
-public: 
-    A() {}
-
-    void test() {}
-};
-
-A g_a;
-
 void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info) 
-{
-    A* ptr = &g_a;
-    ptr->test();
-    
+{    
 	// Check magic number
 	if (magic != MULTIBOOT_BOOTLOADER_MAGIC) {
 		// Not booted by GRUB
@@ -61,8 +47,6 @@ void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info)
 	Terminal::WriteString("Hello, kernel World!\n");
 
 	GDT::GDT_Initialize();
-
-    CRT::crt_fini();
 }
 
 __CPP_END__
