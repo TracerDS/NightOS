@@ -1,6 +1,5 @@
 # Change this to the path of your cross compiler toolchain.
-# Leave empty if its in the PATH
-OPT_DIR := /opt/cross/bin/
+OPT_DIR := /opt/cross/bin
 
 SRC_DIR := src
 HPP_DIR := include
@@ -12,19 +11,20 @@ ASM_EXT := asm
 OUT_EXT := o
 BIN_EXT := bin
 LNK_EXT := ld
+PRE_EXT := po
 
 ARCH_NAME := $(notdir $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST)))))
 CROSS_PREFIX := $(ARCH_NAME)-elf
 
-CXX := $(OPT_DIR)$(CROSS_PREFIX)-g++
+CXX := $(OPT_DIR)/$(CROSS_PREFIX)-g++
 AS := nasm
-LD := $(OPT_DIR)$(CROSS_PREFIX)-ld
+LD := $(OPT_DIR)/$(CROSS_PREFIX)-ld
 
 GCC_VERSION := $(shell $(CXX) -dumpfullversion)
 
 CXXFLAGS := 
 ASFLAGS := 
-LDFLAGS := -T linker.$(LNK_EXT) -O2 -nostdlib -L$(OPT_DIR)../lib -L$(OPT_DIR)../lib/gcc/$(CROSS_PREFIX)/$(GCC_VERSION)
+LDFLAGS := -T linker.$(LNK_EXT) -O2 -nostdlib -L$(OPT_DIR)/../lib/gcc/$(CROSS_PREFIX)/$(GCC_VERSION)
 
 CRT_OBJS := crt.$(OUT_EXT)
 
@@ -32,27 +32,6 @@ BOOTLOADER_DIR := bootloader
 KERNEL_DIR := kernel
 
 # ------------------------------------------------ #
-
-ESC := \x1b\x5b
-RESET := $(ESC)0m
-BOLD := $(ESC)1m
-
-RED := $(ESC)31m
-GREEN := $(ESC)32m
-YELLOW := $(ESC)33m
-BLUE := $(ESC)34m
-MAGENTA := $(ESC)35m
-CYAN := $(ESC)36m
-WHITE := $(ESC)37m
-GRAY := $(ESC)90m
-BRIGHT_RED := $(ESC)91m
-BRIGHT_GREEN := $(ESC)92m
-BRIGHT_YELLOW := $(ESC)93m
-BRIGHT_BLUE := $(ESC)94m
-BRIGHT_MAGENTA := $(ESC)95m
-BRIGHT_CYAN := $(ESC)96m
-BRIGHT_WHITE := $(ESC)97m
-SEPARATOR := ==========================
 
 all: link
 
@@ -62,11 +41,11 @@ compile:
 
 link: compile
 	@mkdir -p $(BIN_DIR)
+	
 	$(LD) $(LDFLAGS) -o $(BIN_DIR)/$(ARCH_NAME).$(BIN_EXT) \
 		$(CRT_OBJS) \
-		$(wildcard $(BOOTLOADER_DIR)/$(OUT_DIR)/*.$(OUT_EXT)) \
-		$(wildcard $(KERNEL_DIR)/$(OUT_DIR)/*.$(OUT_EXT)) \
-		\
+		$(shell find $(BOOTLOADER_DIR) -type f -name '*.$(OUT_EXT)') \
+		$(shell find $(KERNEL_DIR) -type f -name '*.$(OUT_EXT)') \
 	-lgcc
 	rm $(CRT_OBJS)
 

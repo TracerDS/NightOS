@@ -1,6 +1,6 @@
 #include <init.hpp>
-#include <gdt.hpp>
-#include <stdint.h>
+#include <descriptors/gdt.hpp>
+#include <cstdint>
 
 __CPP_START__
 

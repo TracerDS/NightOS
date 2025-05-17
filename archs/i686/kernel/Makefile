@@ -1,47 +1,52 @@
-ARCH_NAME := i686
-
 # Change this to the path of your cross compiler toolchain
 OPT_DIR := /opt/cross/bin
 
-CXX := $(OPT_DIR)/$(ARCH_NAME)-elf-g++
-AS := $(OPT_DIR)/$(ARCH_NAME)-elf-as
-LD := $(OPT_DIR)/$(ARCH_NAME)-elf-ld
-
-AS := nasm
-
-CXXFLAGS := -march=$(ARCH_NAME) -std=c++2b -masm=intel -e __kernel_main__ \
-	-fno-exceptions -fno-rtti -ffreestanding -fno-eliminate-unused-debug-types \
-	-nostdlib -nostartfiles -nodefaultlibs -mno-red-zone \
-	-I./include \
-	-D__NOS_KERNEL_GDT_INCLUDE_32BIT_SEGMENT__ \
-	-g
-
-ASFLAGS := -f elf32 -g -F dwarf
-
 SRC_DIR := src
+HPP_DIR := include
 OUT_DIR := out
 
-SRC_EXT := cpp
-OUT_EXT := o
-ASM_EXT := asm
+ARCH_NAME := i686
 
-SRC_FILES := $(wildcard $(SRC_DIR)/*.$(SRC_EXT))
-ASM_FILES := $(wildcard $(SRC_DIR)/*.$(ASM_EXT))
+SRC_EXT := cpp
+ASM_EXT := asm
+OUT_EXT := o
+PRE_EXT := po
+
+ARCH_NAME := $(notdir $(realpath $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))/..))
+CROSS_PREFIX := $(ARCH_NAME)-elf
+
+CXX := $(OPT_DIR)/$(ARCH_NAME)-elf-g++
+AS := nasm
+LD := $(OPT_DIR)/$(ARCH_NAME)-elf-ld
+AR := $(OPT_DIR)/$(ARCH_NAME)-elf-ar
+
+CXXFLAGS := -march=$(ARCH_NAME) -std=c++2b -masm=intel \
+	-fno-exceptions -fno-rtti -ffreestanding \
+	-nostdlib -nostartfiles -nodefaultlibs -mno-red-zone \
+	-I$(HPP_DIR) \
+	-D__NOS_KERNEL_GDT_INCLUDE_32BIT_SEGMENT__ \
+	-g -fno-eliminate-unused-debug-types
+ASFLAGS := -f elf32 -g -F dwarf
+LDFLAGS := -L$(OPT_DIR)/../lib/gcc/$(CROSS_PREFIX)/$(GCC_VERSION) -r
+ARFLAGS := rcs
+
+SRC_FILES := $(shell find $(SRC_DIR) -type f -name *.$(SRC_EXT))
+ASM_FILES := $(shell find $(SRC_DIR) -type f -name *.$(ASM_EXT))
 OUT_FILES := $(patsubst $(SRC_DIR)/%.$(SRC_EXT),$(OUT_DIR)/%.$(OUT_EXT),$(SRC_FILES))
 
 compile: $(OUT_FILES)
 	mv $(OUT_DIR)/crt.$(OUT_EXT) ..
 
 $(OUT_DIR)/%.$(OUT_EXT): $(SRC_DIR)/%.$(SRC_EXT)
-	@mkdir -p $(OUT_DIR)
+	@mkdir -p $(patsubst $(SRC_DIR)/%,$(OUT_DIR)/%,$(dir $<))
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 $(OUT_DIR)/%.$(OUT_EXT): $(SRC_DIR)/%.$(ASM_EXT)
-	@mkdir -p $(OUT_DIR)
+	@mkdir -p $(patsubst $(SRC_DIR)/%,$(OUT_DIR)/%,$(dir $<))
 	$(AS) $(ASFLAGS) $< -o $@
 
 clean:
-	rm -f ./$(OUT_DIR)/*
+	rm -fr ./$(OUT_DIR)/*
 
 info:
 	@echo "Current architecture: $(ARCH_NAME)"
