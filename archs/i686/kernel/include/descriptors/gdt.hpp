@@ -1,21 +1,11 @@
 #pragma once
 
-#include <stdint.h>
-#include <stddef.h>
-
 #include <init.hpp>
 
-__CPP_START__
+#include <cstdint>
 
-namespace GDT {
-    enum PrivilegeType {
-        PT_KERNEL       = 0b00 << 5, // Kernel mode
-        PT_DRIVER       = 0b01 << 5, // kernel driver mode
-        PT_DRIVER_SAFE  = 0b10 << 5, // kernel user mode 
-        PT_USER         = 0b11 << 5  // User mode
-    };
-
-    enum AccessType {
+namespace GDT {    
+    enum AccessType : std::uint8_t {
         AT_VALID_SEGMENT    = 1 << 7,
         AT_INVALID_SEGMENT  = 0 << 7,
 
@@ -47,36 +37,30 @@ namespace GDT {
         AT_NOT_ACCESSED = 0 << 0,
     };
 
-    enum Flags {
+    enum Flags : std::uint8_t {
         F_GRANULARITY_PAGE  = 1 << 3, // The Limit is in 4 KiB blocks.
         F_GRANULARITY_BYTE  = 0 << 3, // The Limit is in 1 Byte blocks.
 
-        F_SIZE_32BIT    = 1 << 2, // 32-bit segment.
-        F_SIZE_16BIT    = 0 << 2, // 16-bit segment.
+        F_SIZE_32BIT = 1 << 2, // 32-bit segment.
+        F_SIZE_16BIT = 0 << 2, // 16-bit segment.
 
-        F_64BIT_MODE    = 1 << 1, // 64-bit segment.
-        F_32BIT_MODE    = 0 << 1, // Non 64bit segment.
+        F_64BIT_MODE = 1 << 1, // 64-bit segment.
+        F_32BIT_MODE = 0 << 1, // Non 64bit segment.
     };
 
     struct GDT_Entry {
-        uint16_t limit_lo;      // Lower 16 bits of the limit
-        uint32_t base_lo : 24;  // Lower 24 bits of the base
-        uint8_t access;         // Access flags, determine what ring this segment can be accessed from
-        uint8_t limit_hi : 4;   // Upper 4 bits of the limit
-        uint8_t flags : 4;      // Granularity and size
-        uint8_t base_hi;        // Upper 8 bits of the base
+        std::uint16_t limit_lo;      // Lower 16 bits of the limit
+        std::uint32_t base_lo : 24;  // Lower 24 bits of the base
+        std::uint8_t access;         // Access flags, determine what ring this segment can be accessed from
+        std::uint8_t limit_hi : 4;   // Upper 4 bits of the limit
+        std::uint8_t flags : 4;      // Granularity and size
+        std::uint8_t base_hi;        // Upper 8 bits of the base
     } __attribute__((packed));
 
     struct GDT_Descriptor {
-        uint16_t limit;         // sizeof(gdt) - 1
+        std::uint16_t limit;         // sizeof(gdt) - 1
         const GDT_Entry* entry; // address of GDT
     } __attribute__((packed));
     
     bool GDT_Initialize() noexcept;
-    const GDT_Entry* GDT_GetEntries() noexcept;
-    const GDT_Descriptor* GDT_GetCurrentDescriptor() noexcept;
 }
-
-typedef GDT::GDT_Descriptor Desc;
-
-__CPP_END__

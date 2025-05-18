@@ -11,7 +11,6 @@ ASM_EXT := asm
 OUT_EXT := o
 BIN_EXT := bin
 LNK_EXT := ld
-PRE_EXT := po
 
 ARCH_NAME := $(notdir $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST)))))
 CROSS_PREFIX := $(ARCH_NAME)-elf

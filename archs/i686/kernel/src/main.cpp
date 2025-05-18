@@ -1,8 +1,11 @@
 #include <init.hpp>
 #include <cstddef>
 #include <cstdint>
-#include <descriptors/gdt.hpp>
+
 #include <terminal.hpp>
+
+#include <descriptors/gdt.hpp>
+#include <descriptors/idt.hpp>
 
 #include <video/pixels.hpp>
 #include <grub/multiboot.hpp>
@@ -28,29 +31,26 @@ void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info)
 		return;
 	}
 
-    //CRT::crt_init();
-
-    if (false) {
+#ifdef __NOS_KERNEL_USE_FRAMEBUFFER__
+    {
         uint32_t width = mb_info->framebuffer_width;
         uint32_t height = mb_info->framebuffer_height;
         uint32_t pitch = mb_info->framebuffer_pitch;
-        uint32_t *framebuffer = (uint32_t*)(uintptr_t)mb_info->framebuffer_addr;
+        uint32_t* framebuffer = (uint32_t*)(uintptr_t)mb_info->framebuffer_addr;
 
         fill_rect(framebuffer, width, height, pitch, 0, 0, width, height, COLOR_BLACK);
         
         // Draw a white border
         draw_rect(framebuffer, width, height, pitch, 10, 10, width-20, height-20, COLOR_WHITE);
     }
-	// Initialize terminal interface
-	Terminal::Initialize();
+#endif
 
-	Terminal::WriteString("Hello, kernel World!\n");
+	// Initialize terminal interface
 
 	GDT::GDT_Initialize();
+	IDT::IDT_Initialize();
 
-	__asm__ volatile(
-		"int 0x0\n"
-	);
+	
 }
 
 __CPP_END__

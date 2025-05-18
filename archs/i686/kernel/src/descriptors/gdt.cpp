@@ -1,13 +1,16 @@
 #include <init.hpp>
 #include <descriptors/gdt.hpp>
+#include <descriptors/descriptors.hpp>
 #include <cstdint>
 
-__CPP_START__
-
-__attribute__((cdecl)) extern bool __kernel_loadGDT__(const GDT::GDT_Descriptor* descriptor);
+extern "C" __attribute__((cdecl)) bool __kernel_load_GDT__ (
+    const GDT::GDT_Descriptor* const descriptor
+);
 
 namespace GDT {
-    constexpr GDT_Entry GDT_CreateEntry(
+    using Descriptors::PrivilegeType;
+
+    constexpr GDT_Entry GDT_CreateEntry (
         const uint32_t base,
         const uint32_t limit,
         const PrivilegeType privilegeType,
@@ -25,7 +28,7 @@ namespace GDT {
         entry.base_hi = (base >> 24) & 0xFF;      // Upper 8 bits of base
 
         // Set the access and flags bytes
-        entry.access = privilegeType | accessType;
+        entry.access = (privilegeType << 5) | accessType;
         entry.flags = flags & 0x0F;               // Only use the lower 4 bits of flags
 
         return entry;
@@ -106,18 +109,7 @@ namespace GDT {
         .entry = g_GDT
     };
 
-    const GDT_Entry* GDT_GetEntries() noexcept {
-        return g_GDT;
-    }
-    
     bool GDT_Initialize() noexcept {
-        auto var = &g_GDTDescriptor;
-        return __kernel_loadGDT__(var);
-    }
-
-    const GDT_Descriptor* GDT_GetCurrentDescriptor() noexcept {
-        return &g_GDTDescriptor;
+        return __kernel_load_GDT__(&g_GDTDescriptor);
     }
 }
-
-__CPP_END__

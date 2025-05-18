@@ -35,6 +35,7 @@ all: link-$(DEFAULT_ARCH)
 
 compile-all: $(ARCHS_COMPILE)
 link-all: $(ARCHS_LINK)
+clean-compile: clean all
 
 $(ARCHS_COMPILE):
 	$(eval __CURRENT_ARCH__ := $(@))
