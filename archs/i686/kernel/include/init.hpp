@@ -19,3 +19,5 @@
 #      define __KERNEL_DEBUG
 #   endif
 #endif
+
+static_assert(sizeof(void*) == 4, "Kernel must be compiled for 32-bit architecture");

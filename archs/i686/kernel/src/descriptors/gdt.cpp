@@ -35,74 +35,31 @@ namespace GDT {
     }
 
     const GDT_Entry g_GDT[] = {
-        GDT_CreateEntry(0, 0, PT_KERNEL, 0, 0), // null descriptor
-        
-#ifdef __NOS_KERNEL_GDT_INCLUDE_16BIT_SEGMENT__
-        GDT_CreateEntry(0, 0xFFFFF,
-            AT_VALID_SEGMENT | PT_KERNEL | AT_NONSYSTEM_SEGMENT | AT_EXECUTABLE | AT_READABLE | AT_ACCESSED,
-            F_GRANULARITY_BYTE | F_SIZE_16BIT | F_32BIT_MODE
-        ), // Kernel 16-bit code segment
+         // null descriptor
+        GDT_CreateEntry(0, 0, PrivilegeType::PT_KERNEL, 0, 0),
 
-        GDT_CreateEntry(0, 0xFFFFF,
-            AT_VALID_SEGMENT | PT_KERNEL | AT_NONSYSTEM_SEGMENT | AT_NOT_EXECUTABLE | AT_WRITEABLE | AT_ACCESSED,
-            F_GRANULARITY_BYTE | F_SIZE_16BIT | F_32BIT_MODE
-        ), // Kernel 16-bit data segment
-#endif
-
-#ifdef __NOS_KERNEL_GDT_INCLUDE_32BIT_SEGMENT__
+        // Kernel 32-bit code segment
         GDT_CreateEntry(0, 0xFFFFF,
             PrivilegeType::PT_KERNEL,
             AccessType::AT_VALID_SEGMENT | AccessType::AT_NONSYSTEM_SEGMENT
                 | AccessType::AT_EXECUTABLE | AccessType::AT_NON_CONFORMING
                 | AccessType::AT_READABLE | AccessType::AT_ACCESSED,
             Flags::F_GRANULARITY_PAGE | Flags::F_SIZE_32BIT | Flags::F_32BIT_MODE
-        ), // Kernel 32-bit code segment
+        ),
 
+        // Kernel 32-bit data segment
         GDT_CreateEntry(0, 0xFFFFF,
             PrivilegeType::PT_KERNEL,
             AccessType::AT_VALID_SEGMENT | AccessType::AT_NONSYSTEM_SEGMENT
                 | AccessType::AT_NOT_EXECUTABLE | AccessType::AT_DIRECTION_UP
                 | AccessType::AT_WRITEABLE | AccessType::AT_ACCESSED,
             Flags::F_GRANULARITY_PAGE | Flags::F_SIZE_32BIT | Flags::F_32BIT_MODE
-        ), // Kernel 32-bit data segment
-#endif
-
-#ifdef __NOS_KERNEL_GDT_INCLUDE_64BIT_SEGMENT__
-        GDT_CreateEntry(0, 0xFFFFF,
-            PrivilegeType::PT_KERNEL,
-            AccessType::AT_VALID_SEGMENT | AccessType::AT_NONSYSTEM_SEGMENT
-                | AccessType::AT_EXECUTABLE | AccessType::AT_NON_CONFORMING
-                | AccessType::AT_READABLE | AccessType::AT_ACCESSED,
-            Flags::F_GRANULARITY_PAGE | Flags::F_SIZE_16BIT | Flags::F_64BIT_MODE
-        ), // Kernel 64-bit code segment
-
-        GDT_CreateEntry(0, 0xFFFFF,
-            PrivilegeType::PT_KERNEL,
-            AccessType::AT_VALID_SEGMENT | AccessType::AT_NONSYSTEM_SEGMENT
-                | AccessType::AT_NOT_EXECUTABLE | AccessType::AT_DIRECTION_UP
-                | AccessType::AT_WRITEABLE | AccessType::AT_ACCESSED,
-                Flags::F_GRANULARITY_PAGE | Flags::F_SIZE_16BIT | Flags::F_64BIT_MODE
-        ), // Kernel 64-bit data segment
-        
-        GDT_CreateEntry(0, 0xFFFFF,
-            PrivilegeType::PT_USER,
-            AccessType::AT_VALID_SEGMENT | AccessType::AT_NONSYSTEM_SEGMENT
-                | AccessType::AT_EXECUTABLE | AccessType::AT_NON_CONFORMING
-                | AccessType::AT_READABLE | AccessType::AT_ACCESSED,
-            Flags::F_GRANULARITY_PAGE | Flags::F_SIZE_16BIT | Flags::F_64BIT_MODE
-        ), // Usermode 64-bit code segment
-
-        GDT_CreateEntry(0, 0xFFFFF,
-            PrivilegeType::PT_USER,
-            AccessType::AT_VALID_SEGMENT | AccessType::AT_NONSYSTEM_SEGMENT
-                | AccessType::AT_NOT_EXECUTABLE | AccessType::AT_DIRECTION_UP
-                | AccessType::AT_WRITEABLE | AccessType::AT_ACCESSED,
-            Flags::F_GRANULARITY_PAGE | Flags::F_SIZE_16BIT | Flags::F_64BIT_MODE
-        ), // Usermode 64-bit data segment
-#endif
+        ),
     };
-
     static_assert(sizeof(g_GDT) / sizeof(GDT_Entry) > 1, "Not defined any GDT entries!");
+
+    std::uint8_t g_CodeSegmentOffset = 0x8 * 1;
+    std::uint8_t g_DataSegmentOffset = 0x8 * 2;
 
     const GDT_Descriptor g_GDTDescriptor = {
         .limit = sizeof(g_GDT) - 1,

@@ -70,8 +70,8 @@ namespace Terminal {
         }
     }
 
-    void Terminal::WriteNumber(
-        const std::integral auto value,
+    void Terminal::WriteNumber (
+        std::uint64_t value,
         std::uint8_t base,
         VGAColor foreground,
         VGAColor background
@@ -85,48 +85,35 @@ namespace Terminal {
             base = 10; // Default to base 10 if invalid
         }
 
-        using NumberType = decltype(value);
-
-        if constexpr (std::is_signed_v<NumberType>) {
-            if (value < 0 && base == 10) {
-                WriteChar('-', foreground, background);
-                
-                if (value == std::numeric_limits<NumberType>::min()) {
-                    if constexpr (sizeof(NumberType) == 1) {
-                        WriteString("128", foreground, background);
-                    } else if constexpr (sizeof(NumberType) == 2) {
-                        WriteString("32768", foreground, background);
-                    } else if constexpr (sizeof(NumberType) == 4) {
-                        WriteString("2147483648", foreground, background);
-                    } else if constexpr (sizeof(NumberType) == 8) {
-                        WriteString("9223372036854775808", foreground, background);
-                    }
-                    return;
-                }
-                value = -value;
-            }
-        }
-
-        std::make_unsigned_t<NumberType> divisor = 1;
-        auto temp = value;
-        while (temp >= base) {
+        std::uint64_t divisor = 1;
+        while (value / divisor >= base) {
             divisor *= base;
-            temp /= base;
         }
 
         while (divisor > 0) {
-            auto digit_value = value / divisor;
+            std::uint8_t digit = value / divisor;
+            WriteChar(digit < 10 ? '0' + digit : 'A' + digit - 10, foreground, background);
             value %= divisor;
             divisor /= base;
-
-            // Convert digit value to character
-            char digit;
-            if (digit_value < 10) {
-                digit = '0' + digit_value;
-            } else {
-                digit = 'A' + (digit_value - 10); // Uppercase hex
-            }
-            WriteChar(digit, foreground, background);
         }
+    }
+
+    void Terminal::WriteNumber (
+        std::int64_t value,
+        std::uint8_t base,
+        VGAColor foreground,
+        VGAColor background
+    ) noexcept {
+        if (value < 0) {
+            WriteChar('-', foreground, background);
+            if (value == std::numeric_limits<std::int64_t>::min()) {
+                // Handle the case of INT64_MIN separately
+                WriteNumber(std::numeric_limits<std::int64_t>::max() / base, base, foreground, background);
+                WriteNumber(std::numeric_limits<std::int64_t>::max() % base, base, foreground, background);
+                return;
+            }
+            value = -value;
+        }
+        WriteNumber(static_cast<std::uint64_t>(value), base, foreground, background);
     }
 }

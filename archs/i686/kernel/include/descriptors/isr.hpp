@@ -1,0 +1,26 @@
+#pragma once
+
+#include <cstdint>
+
+namespace ISR {
+    struct ISR_RegistersState {
+        using isr_register_type_t = std::uint32_t;
+
+        // in reversed order
+        isr_register_type_t ds;
+
+        isr_register_type_t edi, esi, ebp, esp, ebx, edx, ecx, eax;
+
+        // pushed by the CPU
+        isr_register_type_t interrupt;
+        isr_register_type_t error;
+        isr_register_type_t eip;
+        isr_register_type_t cs;
+        isr_register_type_t eflags;
+    };
+
+    using ISRHandler = void(*)();
+
+    void ISR_Initialize();
+    void ISR_RegisterHandler(std::uint8_t interrupt, ISRHandler handler);
+}

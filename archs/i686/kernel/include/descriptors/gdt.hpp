@@ -63,4 +63,8 @@ namespace GDT {
     } __attribute__((packed));
     
     bool GDT_Initialize() noexcept;
+    
+    extern std::uint8_t g_CodeSegmentOffset;
+    extern std::uint8_t g_DataSegmentOffset;
+
 }

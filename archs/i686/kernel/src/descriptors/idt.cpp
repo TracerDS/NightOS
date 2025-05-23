@@ -1,6 +1,5 @@
-#pragma once
-
 #include <descriptors/idt.hpp>
+#include <descriptors/gdt.hpp>
 
 extern "C" __attribute__((cdecl)) bool __kernel_load_IDT__ (
     const IDT::IDT_Descriptor* const descriptor
@@ -10,7 +9,7 @@ namespace IDT {
     IDT_Entry g_IDT[256];
     
     const IDT_Descriptor g_IDTDescriptor = {
-        .limit = sizeof(g_GDT) - 1,
+        .limit = sizeof(g_IDT) - 1,
         .entries = g_IDT
     };
     
@@ -29,5 +28,12 @@ namespace IDT {
         g_IDT[interrupt].segment = segment;
         g_IDT[interrupt].reserved = 0;
         g_IDT[interrupt].flags = flags;
+    }
+
+    void IDT_EnableEntry(std::uint8_t interrupt) noexcept {
+        g_IDT[interrupt].flags |= GDT::AccessType::AT_VALID_SEGMENT;
+    }
+    void IDT_DisableEntry(std::uint8_t interrupt) noexcept {
+        g_IDT[interrupt].flags &= ~GDT::AccessType::AT_VALID_SEGMENT;
     }
 }

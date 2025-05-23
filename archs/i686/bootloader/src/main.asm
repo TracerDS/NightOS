@@ -59,21 +59,20 @@ extern __kernel_crt_fini__
 global __bootloader_start__:function (__bootloader_start__.end - __bootloader_start__.start)
 __bootloader_start__:
 	.start:
-		; The bootloader has loaded us into 32-bit protected mode on a x86
-		; machine. Interrupts are disabled. Paging is disabled. The processor
-		; state is as defined in the multiboot standard. The kernel has full
-		; control of the CPU. The kernel can only make use of hardware features
-		; and any code it provides as part of itself. There's no printf
-		; function, unless the kernel provides its own <stdio.h> header and a
-		; printf implementation. There are no security restrictions, no
-		; safeguards, no debugging mechanisms, only what the kernel provides
-		; itself. It has absolute and complete power over the
-		; machine.
+		; State:
+		; - 32bit protected mode
+		; - interrupts disabled
+		; - no paging
+		; - temp GDT loaded
+		; - no stack
+		; - no heap
+		; - no memory management
+		; - no C runtime
+		; - eax -> multiboot magic
+		; - ebx -> multiboot info
 
-		; To set up a stack, we set the esp register to point to the top of the
-		; stack (as it grows downwards on x86 systems). This is necessarily done
-		; in assembly as languages such as C cannot function without a stack.
 		mov esp, stack_top
+		mov ebp, esp
 
 		; This is a good place to initialize crucial processor state before the
 		; high-level kernel is entered. It's best to minimize the early

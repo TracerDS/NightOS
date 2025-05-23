@@ -57,8 +57,30 @@ namespace Terminal {
             VGAColor background = VGAColor::VGA_COLOR_BLACK
         ) noexcept;
 
+        template <std::integral T>
         void WriteNumber (
-            const std::integral auto value,
+            T value,
+            std::uint8_t base = 10,
+            VGAColor foreground = VGAColor::VGA_COLOR_LIGHT_GRAY,
+            VGAColor background = VGAColor::VGA_COLOR_BLACK
+        ) noexcept {
+            using ValueType = decltype(value);
+            if constexpr (std::is_unsigned_v<ValueType>) {
+                WriteNumber(static_cast<std::uint64_t>(value), base, foreground, background);
+            } else {
+                WriteNumber(static_cast<std::int64_t>(value), base, foreground, background);
+            }
+        }
+        
+        void WriteNumber (
+            std::uint64_t value,
+            std::uint8_t base = 10,
+            VGAColor foreground = VGAColor::VGA_COLOR_LIGHT_GRAY,
+            VGAColor background = VGAColor::VGA_COLOR_BLACK
+        ) noexcept;
+
+        void WriteNumber (
+            std::int64_t value,
             std::uint8_t base = 10,
             VGAColor foreground = VGAColor::VGA_COLOR_LIGHT_GRAY,
             VGAColor background = VGAColor::VGA_COLOR_BLACK

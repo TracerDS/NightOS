@@ -6,6 +6,7 @@
 
 #include <descriptors/gdt.hpp>
 #include <descriptors/idt.hpp>
+#include <descriptors/isr.hpp>
 
 #include <video/pixels.hpp>
 #include <grub/multiboot.hpp>
@@ -49,8 +50,17 @@ void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info)
 
 	GDT::GDT_Initialize();
 	IDT::IDT_Initialize();
+	ISR::ISR_Initialize();
 
-	
+	Terminal::g_Terminal.WriteString("Hello\nKernel\nWorld\r\n", Terminal::Terminal::VGAColor::VGA_COLOR_LIGHT_MAGENTA);
+    Terminal::g_Terminal.WriteNumber(0xDEADBEEF, 16);
+	Terminal::g_Terminal.WriteString("\r\n");
+
+	// 0x20119c
+	__asm__ volatile (
+		"int 0x0\n"
+		"nop\n"
+	);
 }
 
 __CPP_END__
