@@ -4,9 +4,9 @@
 #include <cstddef>
 
 namespace std {
-    std::size_t strlen(const char* str);
+    using ::strlen;
 
 #ifdef __STDC_WANT_LIB_EXT1__
-    size_t strnlen_s(const char* str, size_t strsz);
+    using ::strnlen_s;
 #endif
 }

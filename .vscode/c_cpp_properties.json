@@ -6,7 +6,7 @@
                 "${workspaceFolder}/*",
                 "${workspaceFolder}/**/**",
                 "/opt/cross/**",
-                "${workspaceFolder}/kernel/**/include"
+                "${workspaceFolder}/archs/**/kernel/include"
             ],
             "defines": [
                 "__NOS_KERNEL_GDT_INCLUDE_32BIT_SEGMENT__"
@@ -21,8 +21,7 @@
                 "-nostdlib",
                 "-nostartfiles",
                 "-nodefaultlibs",
-                "-mno-red-zone",
-                "-U __linux__"
+                "-mno-red-zone"
             ],
             "cStandard": "c23",
             "cppStandard": "c++23"

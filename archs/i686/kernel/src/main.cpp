@@ -8,6 +8,7 @@
 #include <descriptors/idt.hpp>
 #include <descriptors/isr.hpp>
 #include <io.hpp>
+#include <cpuid.hpp>
 
 #include <video/pixels.hpp>
 #include <grub/multiboot.hpp>
@@ -19,6 +20,8 @@ __CPP_START__
 #define COLOR_RED       0x00FF0000
 #define COLOR_GREEN     0x0000FF00
 #define COLOR_BLUE      0x000000FF
+
+extern "C" bool __kernel_check_cpuid__() noexcept;
 
 void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info) 
 {    
@@ -54,14 +57,22 @@ void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info)
 	ISR::ISR_Initialize();
 
 	IO::kprintf_color("Hello\nKernel\nWorld\r\n", Terminal::Terminal::VGAColor::VGA_COLOR_LIGHT_MAGENTA);
-	IO::kprintf("0x%X\r\n", 0xDEADBEEF);
+	IO::kprintf("__cplusplus: %d\r\n", __cplusplus);
+	IO::kprintf("CPUID supported: %s\r\n", __kernel_check_cpuid__() ? "true" : "false");
+
+	auto data = CPUID::get_cpuid(0);
+	char vendor[13] {0};
+	memcpy(vendor, &data.ebx, 4);
+	memcpy(vendor+4, &data.edx, 4);
+	memcpy(vendor+8, &data.ecx, 4);
+	IO::kprintf("CPUID vendor: %s\r\n", vendor);
 
 	// 0x20119c
 	__asm__ volatile (
-		"int 0x0\n"
-		"int 0x1\n"
+		"int 0x20\n"
 		"nop\n"
 	);
+	IO::kprintf("\r\nStill here");
 }
 
 __CPP_END__

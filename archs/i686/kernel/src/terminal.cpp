@@ -1,5 +1,5 @@
 #include <terminal.hpp>
-#include <klibc/string.h>
+#include <klibc/cstring>
 #include <klibc/cctype>
 #include <cstdint>
 #include <utility>
@@ -58,12 +58,13 @@ namespace Terminal {
         VGAColor background
     ) noexcept {
         WriteAt(c, m_cursorX, m_cursorY, foreground, background);
-        ++m_cursorX;
 
         if (c == '\n') {
             ++m_cursorY;
         } else if (c == '\r') {
             m_cursorX = 0;
+        } else {
+            ++m_cursorX;
         }
 
         if (m_cursorX >= m_width) {
@@ -76,13 +77,13 @@ namespace Terminal {
             m_cursorY = m_height - 1;
         }
     }
-    
+
     void Terminal::WriteString(
         const char* const string,
         VGAColor foreground,
         VGAColor background
     ) noexcept {
-        std::size_t stringLen = strlen(string);
+        std::size_t stringLen = std::strlen(string);
         for (std::size_t i = 0; i < stringLen; ++i) {
             WriteChar(string[i], foreground, background);
         }
