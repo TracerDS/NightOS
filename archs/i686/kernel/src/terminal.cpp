@@ -85,6 +85,11 @@ namespace Terminal {
             base = 10; // Default to base 10 if invalid
         }
 
+        if (base == 16) {
+            WriteHex(value, false, false, foreground, background);
+            return;
+        }
+
         std::uint64_t divisor = 1;
         while (value / divisor >= base) {
             divisor *= base;
@@ -115,5 +120,34 @@ namespace Terminal {
             value = -value;
         }
         WriteNumber(static_cast<std::uint64_t>(value), base, foreground, background);
+    }
+
+    void Terminal::WriteHex (
+        std::uint64_t value,
+        bool uppercase,
+        bool prefix,
+        VGAColor foreground,
+        VGAColor background
+    ) noexcept {
+        if (prefix) {
+            WriteString("0x", foreground, background);
+        }
+        
+        if (value == 0) {
+            WriteChar('0', foreground, background);
+            return;
+        }
+
+        std::uint64_t divisor = 1;
+        while (value / divisor >= 16) {
+            divisor *= 16;
+        }
+
+        while (divisor > 0) {
+            std::uint8_t digit = value / divisor;
+            WriteChar(digit < 10 ? '0' + digit : (uppercase ? 'A' : 'a') + digit - 10, foreground, background);
+            value %= divisor;
+            divisor /= 16;
+        }
     }
 }

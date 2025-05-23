@@ -85,6 +85,14 @@ namespace Terminal {
             VGAColor foreground = VGAColor::VGA_COLOR_LIGHT_GRAY,
             VGAColor background = VGAColor::VGA_COLOR_BLACK
         ) noexcept;
+        
+        void WriteHex (
+            std::uint64_t value,
+            bool uppercase = false,
+            bool prefix = false,
+            VGAColor foreground = VGAColor::VGA_COLOR_LIGHT_GRAY,
+            VGAColor background = VGAColor::VGA_COLOR_BLACK
+        ) noexcept;
     };
     
     inline Terminal g_Terminal;
