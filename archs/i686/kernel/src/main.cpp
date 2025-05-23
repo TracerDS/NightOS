@@ -58,6 +58,7 @@ void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info)
 
 	// 0x20119c
 	__asm__ volatile (
+		"int 0x0\n"
 		"int 0x1\n"
 		"nop\n"
 	);

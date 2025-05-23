@@ -14,6 +14,22 @@ namespace Terminal {
             }
         }
     }
+    
+    void Terminal::Scroll() noexcept {
+        for (std::uint16_t y = 1; y < m_height; ++y) {
+            for (std::uint16_t x = 0; x < m_width; ++x) {
+                m_buffer[(y - 1) * m_width + x] = m_buffer[y * m_width + x];
+            }
+        }
+
+        ClearRow(m_height - 1);
+    }
+    void Terminal::ClearRow(std::uint16_t row) noexcept {
+        for (std::uint16_t x = 0; x < m_width; ++x) {
+            WriteAt(' ', x, row);
+        }
+    }
+
 
     void Terminal::WriteAt (
         char c,
@@ -42,23 +58,25 @@ namespace Terminal {
         VGAColor background
     ) noexcept {
         WriteAt(c, m_cursorX, m_cursorY, foreground, background);
+        ++m_cursorX;
+
         if (c == '\n') {
             ++m_cursorY;
-            return;
-        }
-        if (c == '\r') {
+        } else if (c == '\r') {
             m_cursorX = 0;
-            return;
         }
-        ++m_cursorX;
-        if (m_cursorX == m_width) {
+
+        if (m_cursorX >= m_width) {
             m_cursorX = 0;
             ++m_cursorY;
-            if (m_cursorY == m_height) {
-                m_cursorY = 0;
-            }
+        }
+
+        if (m_cursorY >= m_height) {
+            Scroll();
+            m_cursorY = m_height - 1;
         }
     }
+    
     void Terminal::WriteString(
         const char* const string,
         VGAColor foreground,

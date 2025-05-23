@@ -307,26 +307,15 @@ namespace ISR {
 
     extern "C" void ISR_Handler(ISR_RegistersState regs) {
         using Terminal::Terminal;
-        IO::kprintf_color("\r\nISR Handler %d called!\r\n",
-            Terminal::VGAColor::VGA_COLOR_LIGHT_RED,
-            Terminal::VGAColor::VGA_COLOR_BLACK,
-            regs.interrupt
-        );
 
-        if (regs.error < sizeof(g_ISRExceptions) / sizeof(g_ISRExceptions[0])) {
-            IO::kprintf_color("Exception: %s\r\n",
-                Terminal::VGAColor::VGA_COLOR_LIGHT_RED,
-                Terminal::VGAColor::VGA_COLOR_BLACK,
-                g_ISRExceptions[regs.error]
-            );
-        }
-        IO::kprintf_color("Code: 0x%X\r\n",
-            Terminal::VGAColor::VGA_COLOR_LIGHT_RED,
-            Terminal::VGAColor::VGA_COLOR_BLACK,
-            regs.error
-        );
+        const char* errMsg = sizeof(g_ISRExceptions) / sizeof(g_ISRExceptions[0]) > regs.interrupt
+            ? g_ISRExceptions[regs.interrupt]
+            : "Unknown Exception";
 
         IO::kprintf_color(
+            "\r\nISR Handler %d called!\r\n"
+            "Exception: %s\r\n"
+            "Code: 0x%X\r\n"
             "Registers:\r\n"
             "  EAX    = 0x%X\r\n"
             "  EBX    = 0x%X\r\n"
@@ -342,6 +331,9 @@ namespace ISR {
             "  EFLAGS = 0x%X\r\n",
             Terminal::VGAColor::VGA_COLOR_LIGHT_RED,
             Terminal::VGAColor::VGA_COLOR_BLACK,
+            regs.interrupt,
+            errMsg,
+            regs.error,
             regs.eax,
             regs.ebx,
             regs.ecx,

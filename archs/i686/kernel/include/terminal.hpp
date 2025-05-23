@@ -15,6 +15,9 @@ namespace Terminal {
 
         std::uint16_t m_cursorX;
         std::uint16_t m_cursorY;
+
+        void Scroll() noexcept;
+        void ClearRow(std::uint16_t row) noexcept;
     public:
         Terminal() noexcept;
         
