@@ -7,7 +7,7 @@ namespace ISR {
         using isr_register_type_t = std::uint32_t;
 
         // in reversed order
-        isr_register_type_t ds;
+        isr_register_type_t ss, gs, fs, es, ds;
 
         isr_register_type_t edi, esi, ebp, esp, ebx, edx, ecx, eax;
 

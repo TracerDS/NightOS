@@ -9,4 +9,9 @@ namespace std {
 #ifdef __STDC_WANT_LIB_EXT1__
     using ::strnlen_s;
 #endif
+
+    using ::memcmp;
+    using ::memset;
+    using ::memset_explicit;
+    using ::memcpy;
 }

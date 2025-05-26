@@ -5,4 +5,9 @@ if [ -z "$1" ]; then
     exit 1
 fi
 
-qemu-system-i386 -vga virtio -cdrom $*
+script_path=$(dirname "$0")
+
+qemu-system-i386 -vga virtio -cdrom $* \
+    -D "$script_path/../logs/qemu.log" \
+    -d int,cpu_reset \
+    -monitor pty \

@@ -3,8 +3,9 @@
 #include <cstdint>
 
 namespace Paging {
-    enum class Paging_Flags : std::uint16_t {
+    enum class PagingFlags : std::uint16_t {
         PF_PRESENT = 1 << 0,
+        PF_NOT_PRESENT = 0 << 0,
         
         PF_READ_ONLY = 0 << 1,
         PF_READ_WRITE = 1 << 1,
@@ -25,6 +26,6 @@ namespace Paging {
 
         PF_GLOBAL = 1 << 8,
     };
-    
+
     void Paging_Initialize() noexcept;
 }

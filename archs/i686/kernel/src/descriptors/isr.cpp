@@ -306,8 +306,6 @@ namespace ISR {
     }
 
     extern "C" void ISR_Handler(ISR_RegistersState regs) {
-        using Terminal::Terminal;
-
         const char* errMsg = sizeof(g_ISRExceptions) / sizeof(g_ISRExceptions[0]) > regs.interrupt
             ? g_ISRExceptions[regs.interrupt]
             : "Unknown Exception";
@@ -327,10 +325,14 @@ namespace ISR {
             "  ESP    = 0x%X\r\n"
             "  CS     = 0x%X\r\n"
             "  DS     = 0x%X\r\n"
+            "  ES     = 0x%X\r\n"
+            "  FS     = 0x%X\r\n"
+            "  GS     = 0x%X\r\n"
+            "  SS     = 0x%X\r\n"
             "  EIP    = 0x%X\r\n"
             "  EFLAGS = 0x%X\r\n",
-            Terminal::VGAColor::VGA_COLOR_LIGHT_RED,
-            Terminal::VGAColor::VGA_COLOR_BLACK,
+            Terminal::Terminal::VGAColor::VGA_COLOR_LIGHT_RED,
+            Terminal::Terminal::VGAColor::VGA_COLOR_BLACK,
             regs.interrupt,
             errMsg,
             regs.error,
@@ -344,6 +346,10 @@ namespace ISR {
             regs.esp,
             regs.cs,
             regs.ds,
+            regs.es,
+            regs.fs,
+            regs.gs,
+            regs.ss,
             regs.eip,
             regs.eflags
         );

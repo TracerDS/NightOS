@@ -6,22 +6,45 @@ __kernel_isr_stub__:
         pusha
 
         xor eax, eax
+        xor ecx, ecx
+        xor edx, edx
+
         mov ax, ds
+        mov cx, es
+        mov dx, fs
+        
         push eax ; push ds
+        push ecx ; push es
+        push edx ; push fs
+
+        mov ax, gs
+        mov cx, ss
+
+        push eax  ; push gs
+        push ecx  ; push ss
 
         mov ax, 0x10
         mov ds, ax
         mov es, ax
         mov fs, ax
         mov gs, ax
+        mov ss, ax
 
         call ISR_Handler
 
-        pop eax ; pop ds
-        mov ds, ax
-        mov es, ax
-        mov fs, ax
+        pop ecx ; pop ss
+        pop eax ; pop gs
+
+        mov ss, cx
         mov gs, ax
+
+        pop edx ; pop fs
+        pop ecx ; pop es
+        pop eax ; pop ds
+
+        mov fs, dx
+        mov es, cx
+        mov ds, ax
 
         popa
         add esp, 8

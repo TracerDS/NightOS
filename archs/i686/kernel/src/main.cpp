@@ -9,6 +9,7 @@
 #include <descriptors/isr.hpp>
 #include <io.hpp>
 #include <cpuid.hpp>
+#include <paging.hpp>
 
 #include <video/pixels.hpp>
 #include <grub/multiboot.hpp>
@@ -22,6 +23,17 @@ __CPP_START__
 #define COLOR_BLUE      0x000000FF
 
 extern "C" bool __kernel_check_cpuid__() noexcept;
+
+extern std::uint8_t __text_start__[];
+extern std::uint8_t __text_end__[];
+extern std::uint8_t __data_start__[];
+extern std::uint8_t __data_end__[];
+extern std::uint8_t __rodata_start__[];
+extern std::uint8_t __rodata_end__[];
+extern std::uint8_t __bss_start__[];
+extern std::uint8_t __bss_end__[];
+
+void __higher_half_kernel__();
 
 void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info) 
 {    
@@ -60,19 +72,27 @@ void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info)
 	IO::kprintf("__cplusplus: %d\r\n", __cplusplus);
 	IO::kprintf("CPUID supported: %s\r\n", __kernel_check_cpuid__() ? "true" : "false");
 
-	auto data = CPUID::get_cpuid(0);
 	char vendor[13] {0};
-	memcpy(vendor, &data.ebx, 4);
-	memcpy(vendor+4, &data.edx, 4);
-	memcpy(vendor+8, &data.ecx, 4);
+	CPUID::GetVendor(vendor);
 	IO::kprintf("CPUID vendor: %s\r\n", vendor);
 
+	//Paging::Paging_Initialize();
+
 	// 0x20119c
-	__asm__ volatile (
-		"int 0x20\n"
-		"nop\n"
-	);
+	int a = 1;
+	int b = 0;
+	//int c = a / b;
+	if (true) {
+		__asm__ volatile (
+			"int 0x8\n"
+			// "int 0x1\n"
+		);
+	}
 	IO::kprintf("\r\nStill here");
+}
+
+void __higher_half_kernel__() {
+	IO::kprintf_color("Higher half kernel is running!\r\n", Terminal::Terminal::VGAColor::VGA_COLOR_LIGHT_GREEN);
 }
 
 __CPP_END__

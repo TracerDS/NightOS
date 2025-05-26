@@ -11,4 +11,5 @@ namespace CPUID {
     };
 
     CPUID_Data get_cpuid(std::uint32_t eax, std::uint32_t ecx = 0) noexcept;
+    void GetVendor(char vendor[13]) noexcept;
 }
