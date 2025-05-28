@@ -32,19 +32,14 @@ extern std::uint8_t __rodata_start__[];
 extern std::uint8_t __rodata_end__[];
 extern std::uint8_t __bss_start__[];
 extern std::uint8_t __bss_end__[];
-
-void __higher_half_kernel__();
+extern std::uint8_t __kernel_start__[];
+extern std::uint8_t __kernel_end__[];
 
 void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info) 
 {    
 	// Check magic number
 	if (magic != MULTIBOOT_BOOTLOADER_MAGIC) {
 		// Not booted by GRUB
-		return;
-	}
-
-	if (!(mb_info->flags & MULTIBOOT_INFO_FRAMEBUFFER_INFO)) {
-		// No framebuffer information
 		return;
 	}
 
@@ -75,24 +70,13 @@ void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info)
 	char vendor[13] {0};
 	CPUID::GetVendor(vendor);
 	IO::kprintf("CPUID vendor: %s\r\n", vendor);
+	IO::kprintf("vendor addr: 0x%x\r\n", &vendor);
 
 	//Paging::Paging_Initialize();
 
-	// 0x20119c
-	int a = 1;
-	int b = 0;
-	//int c = a / b;
-	if (true) {
-		__asm__ volatile (
-			"int 0x8\n"
-			// "int 0x1\n"
-		);
-	}
-	IO::kprintf("\r\nStill here");
-}
-
-void __higher_half_kernel__() {
-	IO::kprintf_color("Higher half kernel is running!\r\n", Terminal::Terminal::VGAColor::VGA_COLOR_LIGHT_GREEN);
+	IO::kprintf("__kernel_start__: 0x%x\r\n", __kernel_start__);
+	IO::kprintf("__kernel_end__:   0x%x\r\n", __kernel_end__);
+	IO::kprintf("Kernel size:      0x%x\r\n", __kernel_end__ - __kernel_start__);
 }
 
 __CPP_END__

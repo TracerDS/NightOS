@@ -305,9 +305,9 @@ namespace ISR {
         IDT::IDT_EnableEntry(interrupt);
     }
 
-    extern "C" void ISR_Handler(ISR_RegistersState regs) {
-        const char* errMsg = sizeof(g_ISRExceptions) / sizeof(g_ISRExceptions[0]) > regs.interrupt
-            ? g_ISRExceptions[regs.interrupt]
+    extern "C" void ISR_Handler(ISR_RegistersState* regs) {
+        const char* errMsg = sizeof(g_ISRExceptions) / sizeof(g_ISRExceptions[0]) > regs->interrupt
+            ? g_ISRExceptions[regs->interrupt]
             : "Unknown Exception";
 
         IO::kprintf_color(
@@ -333,26 +333,30 @@ namespace ISR {
             "  EFLAGS = 0x%X\r\n",
             Terminal::Terminal::VGAColor::VGA_COLOR_LIGHT_RED,
             Terminal::Terminal::VGAColor::VGA_COLOR_BLACK,
-            regs.interrupt,
+            regs->interrupt,
             errMsg,
-            regs.error,
-            regs.eax,
-            regs.ebx,
-            regs.ecx,
-            regs.edx,
-            regs.esi,
-            regs.edi,
-            regs.ebp,
-            regs.esp,
-            regs.cs,
-            regs.ds,
-            regs.es,
-            regs.fs,
-            regs.gs,
-            regs.ss,
-            regs.eip,
-            regs.eflags
+            regs->error,
+            regs->eax,
+            regs->ebx,
+            regs->ecx,
+            regs->edx,
+            regs->esi,
+            regs->edi,
+            regs->ebp,
+            regs->esp,
+            regs->cs,
+            regs->ds,
+            regs->es,
+            regs->fs,
+            regs->gs,
+            regs->ss,
+            regs->eip,
+            regs->eflags
         );
+
+        if (regs->interrupt == 0x0E) {
+            __asm__ volatile("hlt");
+        }
     }
 
     void ISR_Initialize() {

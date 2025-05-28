@@ -17,21 +17,14 @@ namespace Paging {
         constexpr std::uint32_t GB = 1024 * MB;
     }
 
-    std::uint32_t g_PageDirectory[1024] __attribute__((aligned(4096)));
-    std::uint32_t g_PageTable[1024] __attribute__((aligned(4096)));
-    std::uint32_t g_KernelPageTable[1024] __attribute__((aligned(4096)));
+    __attribute__((aligned(4096))) std::uint32_t g_PageDirectory[1024] { 0 };
+    __attribute__((aligned(4096))) std::uint32_t g_PageTable[1024] { 0 };
+    __attribute__((aligned(4096))) std::uint32_t g_KernelPageTable[1024] { 0 };
 
     void Paging_Initialize() noexcept {
         constexpr auto PAGE4KB = 4 * ByteUnits::KB;
 
-        // Clear page directory
-        for (std::size_t i = 0; i < 1024; ++i) {
-            g_PageDirectory[i] = 0x00000000 |
-                std::to_underlying<>(PagingFlags::PF_NOT_PRESENT) |
-                std::to_underlying<>(PagingFlags::PF_READ_WRITE) |
-                std::to_underlying<>(PagingFlags::PF_SUPERVISOR);
-        }
-
+        /*
         // Identity map the first 1 MB of memory
         for (std::size_t i = 0; i < ByteUnits::MB / PAGE4KB; ++i) {
             g_PageTable[i] = i * PAGE4KB | 
@@ -62,8 +55,22 @@ namespace Paging {
             | std::to_underlying<>(PagingFlags::PF_READ_WRITE)
             | std::to_underlying<>(PagingFlags::PF_SUPERVISOR);
         
-        __kernel_enable_paging__();
+        */
+
+        for (std::size_t i = 0; i < 1024; ++i) {
+            g_PageTable[i] = (0x1000 * i) |
+                std::to_underlying<>(PagingFlags::PF_PRESENT) |
+                std::to_underlying<>(PagingFlags::PF_READ_WRITE) |
+                std::to_underlying<>(PagingFlags::PF_SUPERVISOR);
+        }
+
+        g_PageDirectory[0] = reinterpret_cast<std::uint32_t>(g_PageTable) |
+            std::to_underlying<>(PagingFlags::PF_PRESENT) |
+            std::to_underlying<>(PagingFlags::PF_READ_WRITE) |
+            std::to_underlying<>(PagingFlags::PF_SUPERVISOR);
+
         __kernel_load_page_directory__(g_PageDirectory);
+        __kernel_enable_paging__();
     }
 
     void map_page(void* physaddr, void* virtualaddr, unsigned int flags) {

@@ -30,7 +30,11 @@ __kernel_isr_stub__:
         mov gs, ax
         mov ss, ax
 
+        lea eax, dword [esp]
+
+        push eax
         call ISR_Handler
+        pop eax
 
         pop ecx ; pop ss
         pop eax ; pop gs

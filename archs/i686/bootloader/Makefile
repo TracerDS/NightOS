@@ -19,7 +19,7 @@ AR := $(OPT_DIR)/$(CROSS_PREFIX)-ar
 GCC_VERSION := $(shell $(CXX) -dumpfullversion)
 
 CXXFLAGS :=
-ASFLAGS := -f elf32 -g -F dwarf
+ASFLAGS := -f elf32 -g -F dwarf -D__MULTIBOOT__
 LDFLAGS := -L$(OPT_DIR)/../lib/gcc/$(CROSS_PREFIX)/$(GCC_VERSION) -r
 ARFLAGS := rcs
 

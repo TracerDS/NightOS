@@ -8,9 +8,10 @@
 /**/out/
 
 # Ignore isodir for the OS
-isodir
+isodir/
 
-# Ignore bochs files
-bochs_log.txt
-bochs_debug_log.txt
-bx_enh_dbg.ini
+# Ignore logs
+logs/
+
+# Ignore misc files
+fonts/

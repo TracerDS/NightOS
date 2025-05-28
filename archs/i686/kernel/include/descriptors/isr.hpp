@@ -18,6 +18,7 @@ namespace ISR {
         isr_register_type_t cs;
         isr_register_type_t eflags;
     };
+    static_assert(sizeof(ISR_RegistersState) == 18 * 4, "None");
 
     using ISRHandler = void(*)();
 

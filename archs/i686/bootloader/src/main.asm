@@ -1,47 +1,94 @@
-MBALIGN	 equ 1 << 0				; align loaded modules on page boundaries
-MEMINFO	 equ 1 << 1				; provide memory map
-VIDINFO	 equ 1 << 2
-MBFLAGS	 equ MBALIGN | MEMINFO	; this is the Multiboot 'flag' field
-MAGIC	 equ 0x1BADB002			; 'magic number' lets bootloader find the header
-CHECKSUM equ -(MAGIC + MBFLAGS)	; checksum of the header
+section .multiboot
+	
+MB_FRAMEBUFFER 	equ 0 		; Disable framebuffer
 
-FBMODE		equ 0		; Requested mode (0 for framebuffer)
-FBWIDTH		equ	1280	; Requested width (can be 0 for default)
-FBHEIGHT	equ	720		; Requested height (can be 0 for default)
-FBDEPTH		equ	32		; Requested depth (can be 0 for default)
+MB_FB_WIDTH     equ	1280	; Requested width (can be 0 for default)
+MB_FB_HEIGHT    equ	720		; Requested height (can be 0 for default)
+MB_FB_DEPTH     equ	32      ; Requested depth (can be 0 for default)
 
-; Declare a multiboot header that marks the program as a kernel. These are magic
-; values that are documented in the multiboot standard. The bootloader will
-; search for this signature in the first 8 KiB of the kernel file, aligned at a
-; 32-bit boundary. The signature is in its own section so the header can be
-; forced to be within the first 8 KiB of the kernel file.
+%ifdef __MULTIBOOT2__
+
+MB_MAGIC    		equ 0xE85250D6
+MB_ARCHITECTURE		equ 0 ; 32-bit pmode i386
+MB_HEADER_LENGTH	equ multiboot_header.end - multiboot_header.start
+MB_CHECKSUM			equ -(MB_MAGIC + MB_ARCHITECTURE + MB_HEADER_LENGTH) ; checksum of the header
+
+MB_TAG_END 		equ 0
+MB_TAG_OPTIONAL equ 1
+
 section .multiboot
 align 4
-	dd MAGIC	; Magic number
-    dd MBFLAGS	; Flags
-    dd CHECKSUM	; Checksum
-    
-    ; Framebuffer request tag
-	dd 0		; Unused
-	dd 0		; Unused
-	dd 0		; Unused
-	dd 0		; Unused
-	dd 0		; Unused
-	dd FBMODE	; Requested mode
-    dd FBWIDTH	; Requested width
-    dd FBHEIGHT	; Requested height
-    dd FBDEPTH	; Requested depth
+multiboot_header:
+	.start:
+		dd MB_MAGIC	; Magic number
+		dd MB_ARCHITECTURE	; Architecture
+		dd MB_HEADER_LENGTH	; Header length
+		dd MB_CHECKSUM	; Checksum
+		
+%if MB_FRAMEBUFFER != 0
+		; Framebuffer request tag
+	.framebuffer.start:
+		dw 5				; Tag type (5 = framebuffer)
+		dw MB_TAG_OPTIONAL	; Tag flags (1 = optional)
+		dd .framebuffer.end - .framebuffer.start ; Tag size
+		dd MB_FB_WIDTH
+		dd MB_FB_HEIGHT
+		dd MB_FB_DEPTH
 
-; The multiboot standard does not define the value of the stack pointer register
-; (esp) and it is up to the kernel to provide a stack. This allocates room for a
-; small stack by creating a symbol at the bottom of it, then allocating 16384
-; bytes for it, and finally creating a symbol at the top. The stack grows
-; downwards on x86. The stack is in its own section so it can be marked nobits,
-; which means the kernel file is smaller because it does not contain an
-; uninitialized stack. The stack on x86 must be 16-byte aligned according to the
-; System V ABI standard and de-facto extensions. The compiler will assume the
-; stack is properly aligned and failure to align the stack will result in
-; undefined behavior.
+	.framebuffer.end:
+		dw MB_TAG_END
+		dw 0
+		dd 8
+%endif
+	.end:
+
+%else
+MB_MAGIC    equ 0x1BADB002	; 'magic number' lets bootloader find the header
+MB_ALIGN    equ 1 << 0		; align loaded modules on page boundaries
+MB_MEMINFO  equ 1 << 1		; provide memory map
+MB_VIDINFO  equ 1 << 2		; provide video information
+
+; this is the Multiboot 'flag' field
+%if MB_FRAMEBUFFER != 0
+MB_FLAGS	equ MB_ALIGN | MB_MEMINFO | MB_VIDINFO
+%else
+MB_FLAGS	equ MB_ALIGN | MB_MEMINFO
+%endif
+MB_CHECKSUM equ -(MB_MAGIC + MB_FLAGS)	; checksum of the header
+
+MB_FB_MODE	equ 0	; Requested mode (0 for framebuffer)
+
+section .multiboot
+align 4
+multiboot_header:
+	.start:
+		dd MB_MAGIC	; Magic number
+		dd MB_FLAGS	; Flags
+		dd MB_CHECKSUM	; Checksum
+		
+%if MB_FRAMEBUFFER != 0
+		; Unused fields for compatibility
+		dd 0            ; Unused
+		dd 0            ; Unused
+		dd 0            ; Unused
+		dd 0            ; Unused
+		dd 0            ; Unused
+	.framebuffer.start:
+		; Framebuffer request tag
+		dd MB_FB_MODE	; Requested mode
+		dd MB_FB_WIDTH	; Requested width
+		dd MB_FB_HEIGHT	; Requested height
+		dd MB_FB_DEPTH	; Requested depth
+	.framebuffer.end:
+%endif
+	.end:
+%endif ; __MULTIBOOT2__
+
+extern __kernel_start__
+
+KERNEL_VIRTUAL_ADDRESS equ 0xC0000000
+KERNEL_PHYSICAL_ADDRESS equ __kernel_start__ - KERNEL_VIRTUAL_ADDRESS ; Physical address of the kernel
+
 section .bss
 align 16
 stack_bottom:
@@ -51,7 +98,7 @@ stack_top:
 ; The linker script specifies __kernel_main__ as the entry point to the kernel and the
 ; bootloader will jump to this position once the kernel has been loaded. It
 ; doesn't make sense to return from this function as the bootloader is gone.
-section .text
+section .preboot
 extern __kernel_main__
 extern __kernel_crt_init__
 extern __kernel_crt_fini__
@@ -71,48 +118,64 @@ __bootloader_start__:
 		; - eax -> multiboot magic
 		; - ebx -> multiboot info
 
-		mov esp, stack_top
-		mov ebp, esp
-
-		; This is a good place to initialize crucial processor state before the
-		; high-level kernel is entered. It's best to minimize the early
-		; environment where crucial features are offline. Note that the
-		; processor is not fully initialized yet: Features such as floating
-		; point instructions and instruction set extensions are not initialized
-		; yet. The GDT should be loaded here. Paging should be enabled here.
-		; C++ features such as global constructors and exceptions will require
-		; runtime support to work as well.
-
 		; Save parameters from the bootloader
 		mov edi, eax
 
+		; setup initial paging
+
+	.paging.start:
+		;lea ecx, dword [__INIT_PAGE_TABLE__ - KERNEL_VIRTUAL_ADDRESS]
+		;or ecx, 11b
+		;mov dword [__INIT_PAGE_DIRECTORY__ - KERNEL_VIRTUAL_ADDRESS], ecx
+
+		lea eax, dword [__INIT_PAGE_DIRECTORY__ - KERNEL_VIRTUAL_ADDRESS]
+		mov cr3, eax
+
+		mov eax, cr4
+		or eax, 10000b
+		mov cr4, eax
+
+		mov eax, cr0
+		or eax, 0x80000000
+		mov cr0, eax
+	.paging.end:
+
+		; paging enabled.
+		; identity mapped the first few MB of memory
+		; Kernel is mapped at 0xC0000000
+
+		mov esp, stack_top
+		mov ebp, esp
+		
 		call __kernel_crt_init__
 
 		push ebx
 		push edi
 
-		; Enter the high-level kernel. The ABI requires the stack is 16-byte
-		; aligned at the time of the call instruction (which afterwards pushes
-		; the return pointer of size 4 bytes). The stack was originally 16-byte
-		; aligned above and we've pushed a multiple of 16 bytes to the
-		; stack since (pushed 0 bytes so far), so the alignment has thus been
-		; preserved and the call is well defined.
+		; Enter the high-level kernel.
 		call __kernel_main__
 
 		call __kernel_crt_fini__
 
-		; If the system has nothing more to do, put the computer into an
-		; infinite loop. To do that:
-		; 1) Disable interrupts with cli (clear interrupt enable in eflags).
-		; 	 They are already disabled by the bootloader, so this is not needed.
-		; 	 Mind that you might later enable interrupts and return from
-		; 	 kernel_main (which is sort of nonsensical to do).
-		; 2) Wait for the next interrupt to arrive with hlt (halt instruction).
-		; 	 Since they are disabled, this will lock up the computer.
-		; 3) Jump to the hlt instruction if it ever wakes up due to a
-		; 	 non-maskable interrupt occurring or due to system management mode.
+		; Halt
 		cli
 	.hang:
 		hlt
 		jmp .hang
 	.end:
+
+section .data
+align 4096
+__INIT_PAGE_DIRECTORY__:
+	.start:
+		; Identity map the first 4MB of memory
+		dd (0x400000 * 0) | 10000011b
+		times 768 - 1 dd 0
+
+		dd (0x00200000 >> 22) | 10000011b ; Map the kernel at 0xC0000000
+		times 1024 - 768 - 1 dd 0
+	.end:
+
+%if __INIT_PAGE_DIRECTORY__.end - __INIT_PAGE_DIRECTORY__.start != 4096
+	%error "Page table size mismatch"
+%endif

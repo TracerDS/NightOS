@@ -25,6 +25,7 @@ CXXFLAGS := -march=$(ARCH_NAME) -std=c++2b -masm=intel \
 	-nostdlib -nostartfiles -nodefaultlibs -mno-red-zone \
 	-I$(HPP_DIR) \
 	-D__NOS_KERNEL_GDT_INCLUDE_32BIT_SEGMENT__ \
+	-D__MULTIBOOT__ \
 	-g -fno-eliminate-unused-debug-types
 ASFLAGS := -f elf32 -g -F dwarf
 LDFLAGS := -L$(OPT_DIR)/../lib/gcc/$(CROSS_PREFIX)/$(GCC_VERSION) -r
