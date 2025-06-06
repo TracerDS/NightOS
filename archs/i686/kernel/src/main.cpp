@@ -10,6 +10,8 @@
 #include <io.hpp>
 #include <cpuid.hpp>
 #include <paging.hpp>
+#include <descriptors/irq.hpp>
+#include <klibc/cassert>
 
 #include <video/pixels.hpp>
 #include <grub/multiboot.hpp>
@@ -62,6 +64,7 @@ void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info)
 	GDT::GDT_Initialize();
 	IDT::IDT_Initialize();
 	ISR::ISR_Initialize();
+	IRQ::IRQ_Init();
 
 	IO::kprintf_color("Hello\nKernel\nWorld\r\n", Terminal::Terminal::VGAColor::VGA_COLOR_LIGHT_MAGENTA);
 	IO::kprintf("__cplusplus: %d\r\n", __cplusplus);
@@ -70,13 +73,36 @@ void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info)
 	char vendor[13] {0};
 	CPUID::GetVendor(vendor);
 	IO::kprintf("CPUID vendor: %s\r\n", vendor);
-	IO::kprintf("vendor addr: 0x%x\r\n", &vendor);
+	IO::kprintf("vendor addr: 0x%X\r\n", &vendor);
 
 	//Paging::Paging_Initialize();
 
-	IO::kprintf("__kernel_start__: 0x%x\r\n", __kernel_start__);
-	IO::kprintf("__kernel_end__:   0x%x\r\n", __kernel_end__);
-	IO::kprintf("Kernel size:      0x%x\r\n", __kernel_end__ - __kernel_start__);
+	if (false) {
+		ISR::ISR_RegisterHandler(0x20, [](ISR::ISR_RegistersState* regs) {
+			static int ticks = 0;
+			++ticks;
+			if (ticks > 3) {
+				ticks = 0;
+				IO::kprintf("Tick!\r\n");
+			}
+		});
+	}
+
+	IO::kprintf("__kernel_start__: 0x%X\r\n", __kernel_start__);
+	IO::kprintf("__kernel_end__:   0x%X\r\n", __kernel_end__);
+	IO::kprintf("Kernel size:      0x%X\r\n", __kernel_end__ - __kernel_start__);
+	
+	IO::kprintf("\r\n");
+
+	__asm__("int 0x1");
+
+	while (true) {
+		// Enable interrupts and loop
+		__asm__(
+			"sti\n"
+			"nop\n"
+		);
+	}
 }
 
 __CPP_END__

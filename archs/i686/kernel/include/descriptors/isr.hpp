@@ -20,8 +20,9 @@ namespace ISR {
     };
     static_assert(sizeof(ISR_RegistersState) == 18 * 4, "None");
 
-    using ISRHandler = void(*)();
+    using ISRHandler = void(*)(ISR_RegistersState* registers);
 
     void ISR_Initialize();
-    void ISR_RegisterHandler(std::uint8_t interrupt, ISRHandler handler);
+    void ISR_RegisterHandler(std::uint8_t interrupt, ISRHandler handler) noexcept;
+    void ISR_UnregisterHandler(std::uint8_t interrupt) noexcept;
 }

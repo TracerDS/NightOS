@@ -1,13 +1,21 @@
 #!/bin/bash
 
-if [ -z "$1" ]; then
+target=$1
+
+if [ -z "$target" ]; then
     echo "Usage: $0 <target>"
     exit 1
 fi
 
-script_path=$(dirname "$0")
+SCRIPT_DIR=$(dirname "$0")
 
-qemu-system-i386 -vga virtio -cdrom $* \
-    -D "$script_path/../logs/qemu.log" \
+if [ -f "$SCRIPT_DIR/../archs/$target/build/$target.iso" ]; then
+    target="$SCRIPT_DIR/../archs/$target/build/$target.iso"
+fi
+
+args=${@:2}
+
+qemu-system-i386 -vga virtio -cdrom $target $args \
+    -D "$SCRIPT_DIR/../logs/qemu.log" \
     -d int,cpu_reset \
     -monitor pty \

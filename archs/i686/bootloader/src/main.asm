@@ -86,6 +86,7 @@ multiboot_header:
 
 extern __kernel_start__
 
+BOOT_START equ 0x00200000
 KERNEL_VIRTUAL_ADDRESS equ 0xC0000000
 KERNEL_PHYSICAL_ADDRESS equ __kernel_start__ - KERNEL_VIRTUAL_ADDRESS ; Physical address of the kernel
 
@@ -102,6 +103,13 @@ section .preboot
 extern __kernel_main__
 extern __kernel_crt_init__
 extern __kernel_crt_fini__
+
+global __kernel_halt__:function (__kernel_halt__.end - __kernel_halt__.start)
+__kernel_halt__:
+	.start:
+		hlt
+	.end:
+
 
 global __bootloader_start__:function (__bootloader_start__.end - __bootloader_start__.start)
 __bootloader_start__:
@@ -172,10 +180,10 @@ __INIT_PAGE_DIRECTORY__:
 		dd (0x400000 * 0) | 10000011b
 		times 768 - 1 dd 0
 
-		dd (0x00200000 >> 22) | 10000011b ; Map the kernel at 0xC0000000
+		dd (BOOT_START >> 22) | 10000011b ; Map the kernel at 0xC0000000
 		times 1024 - 768 - 1 dd 0
 	.end:
 
 %if __INIT_PAGE_DIRECTORY__.end - __INIT_PAGE_DIRECTORY__.start != 4096
-	%error "Page table size mismatch"
+	%error "Page directory size mismatch"
 %endif

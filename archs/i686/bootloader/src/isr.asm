@@ -55,9 +55,6 @@ __kernel_isr_stub__:
         iret
     .end:
 
-; esp - 0x207fcc
-; ebp - 0x208000
-; 0x207fc4 0x207fcc
 %macro ISR_NoError 1
 global ISR%1
 ISR%1:
@@ -72,6 +69,12 @@ ISR%1:
     push %1
     jmp __kernel_isr_stub__
 %endmacro
+
+section .text.isr_stubs
+global __isr_stubs_start__
+global __isr_stubs_end__
+
+__isr_stubs_start__:
 
 ISR_NoError 0
 ISR_NoError 1
@@ -329,3 +332,5 @@ ISR_NoError 252
 ISR_NoError 253
 ISR_NoError 254
 ISR_NoError 255
+
+__isr_stubs_end__:

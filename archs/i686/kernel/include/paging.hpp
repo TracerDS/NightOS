@@ -28,4 +28,7 @@ namespace Paging {
     };
 
     void Paging_Initialize() noexcept;
+
+    void map_page(void* physAddr, void* virtualAddr, std::uint32_t flags) noexcept;
+    void unmap_page(void* virtualAddr) noexcept;
 }

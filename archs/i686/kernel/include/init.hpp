@@ -15,8 +15,8 @@
 #endif
 
 #ifdef _DEBUG
-#   ifndef __KERNEL_DEBUG
-#      define __KERNEL_DEBUG
+#   ifndef __KERNEL_DEBUG__
+#      define __KERNEL_DEBUG__
 #   endif
 #endif
 
