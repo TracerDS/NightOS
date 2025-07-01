@@ -1,3 +1,5 @@
+section .text
+
 global __kernel_load_IDT__:function (__kernel_load_IDT__.end - __kernel_load_IDT__.start)
 __kernel_load_IDT__:
     .start:

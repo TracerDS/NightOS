@@ -1,3 +1,5 @@
+section .text
+
 global __kernel_load_GDT__:function (__kernel_load_GDT__.end - __kernel_load_GDT__.start)
 __kernel_load_GDT__:
     .start:

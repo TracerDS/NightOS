@@ -2,12 +2,15 @@
 
 #include <init.hpp>
 
-extern "C" void __kernel_halt__();
-
-void __kassert(const char* msg, const char* file, int line);
+void __kassert(const char* msg, const char* file, int line, const char* function);
 
 #ifdef __KERNEL_DEBUG__
-#   define assert(condition) __kassert(#condition, __FILE__, __LINE__)
+#   define assert(condition) \
+    ( \
+        (condition) \
+        ? static_cast<void>(0) \
+        : __kassert(#condition, __FILE__, __LINE__, __PRETTY_FUNCTION__) \
+    )
 #else
-#   define assert(condition) ((void)0)
+#   define assert(condition) static_cast<void>(0)
 #endif

@@ -1,9 +1,7 @@
-#pragma once
+#ifndef __KLIBC_STRING_H__
+#define __KLIBC_STRING_H__
 
-#include <init.hpp>
 #include <stddef.h>
-
-__CPP_START__
 
 size_t strlen(const char* str);
 
@@ -16,4 +14,4 @@ void* memset(void* dest, int ch, size_t count);
 void* memset_explicit(void* dest, int ch, size_t count);
 void* memcpy(void* dest, const void* src, size_t count);
 
-__CPP_END__
+#endif

@@ -1,8 +1,9 @@
 #include <descriptors/irq.hpp>
 #include <serial.hpp>
+#include <io.hpp>
 
-namespace IRQ {
-    namespace PIC {        
+namespace IRQ {    
+    namespace PIC {
         void PIC_Init() noexcept {
             Serial::WriteByte(PIC_Ports::PIC1_COMMAND, PIC_Flags::ICW1 | PIC_Flags::ICW4_PRESENT); // Initialize PIC1
             Serial::WriteByte(PIC_Ports::PIC2_COMMAND, PIC_Flags::ICW1 | PIC_Flags::ICW4_PRESENT); // Initialize PIC1
@@ -25,16 +26,20 @@ namespace IRQ {
         }
     }
 
+
     void IRQ_Init() noexcept {
         PIC::PIC_Init(); // Initialize the Programmable Interrupt Controller (PIC)
-        IRQ_SetClock(100);
+        
+        IRQ_SetClock(1000); // 1 ms
     }
 
-    void IRQ_SetClock(std::uint8_t frequency) noexcept {
+    void IRQ_SetClock(std::uint16_t frequency) noexcept { 
         constexpr std::uint32_t IRQ_FREQUENCY = 1193182; // Default frequency for the PIT (Programmable Interval Timer)
-        
+
         // Set IRQ0 timer frequency
         std::uint32_t divisor = IRQ_FREQUENCY / frequency;
+        if (divisor > 65535) divisor = 65535; // Limit divisor to 16 bits
+        if (divisor == 0) divisor = 1;
 
         // Command port: channel 0, lo/hi byte, mode 3
         Serial::WriteByte(

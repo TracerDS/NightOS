@@ -1,3 +1,5 @@
+section .text
+
 global __kernel_load_page_directory__:function (__kernel_load_page_directory__.end - __kernel_load_page_directory__.start)
 __kernel_load_page_directory__:
     .start:

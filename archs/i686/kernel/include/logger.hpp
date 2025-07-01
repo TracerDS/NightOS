@@ -3,6 +3,7 @@
 namespace Log {
     class Logger {
     public:
-        void log(const char* message);
+        static void log(const char* message);
+        static void log(const char* fmt, ...);
     };
 }

@@ -1,9 +1,13 @@
 #include <terminal.hpp>
-#include <klibc/cstring>
+#include <klibc/string.h>
 #include <klibc/cctype>
 #include <cstdint>
 #include <utility>
 #include <limits>
+
+namespace std {
+    using ::strlen;
+}
 
 namespace Terminal {
     Terminal::Terminal() noexcept
@@ -105,7 +109,7 @@ namespace Terminal {
         }
 
         if (base == 16) {
-            WriteHex(value, false, false, foreground, background);
+            WriteHex(value, false, foreground, background);
             return;
         }
 
@@ -141,17 +145,66 @@ namespace Terminal {
         WriteNumber(static_cast<std::uint64_t>(value), base, foreground, background);
     }
 
-    void Terminal::WriteHex (
-        std::uint64_t value,
-        bool uppercase,
-        bool prefix,
+    void Terminal::WriteFloat (
+        double value,
+        int precision,
         VGAColor foreground,
         VGAColor background
     ) noexcept {
-        if (prefix) {
-            WriteString("0x", foreground, background);
+        using limits = std::numeric_limits<double>;
+        constexpr auto EPSILON = limits::epsilon();
+
+        if (value == limits::quiet_NaN()) { // Check for NaN
+            WriteString("NaN", foreground, background);
+            return;
         }
-        
+
+        if (value == -limits::infinity()) { // Check for -infinity
+            WriteString("-inf", foreground, background);
+            return;
+        }
+
+        if (value == limits::infinity()) { // Check for +infinity
+            WriteString("inf", foreground, background);
+            return;
+        }
+
+        if (value < 0) {
+            WriteChar('-', foreground, background);
+            value = -value;
+        }
+
+        std::uint64_t integerPart = static_cast<std::uint64_t>(value);
+        WriteNumber(integerPart, 10, foreground, background);
+
+        double fraction = value - integerPart;
+        if (fraction < EPSILON || precision <= 0) {
+            return;
+        }
+
+        WriteChar('.', foreground, background);
+
+        // Multiply and round to the nearest integer for the required precision
+        double rounding = 0.5;
+        for (auto i = 0; i < precision; ++i) {
+            rounding /= 10.0;
+        }
+        fraction += rounding;
+
+        for (auto i = 0; i < precision; ++i) {
+            fraction *= 10.0;
+            auto digit = static_cast<std::uint8_t>(fraction);
+            WriteChar('0' + digit, foreground, background);
+            fraction -= digit;
+        }
+    }
+
+    void Terminal::WriteHex (
+        std::uint64_t value,
+        bool uppercase,
+        VGAColor foreground,
+        VGAColor background
+    ) noexcept {
         if (value == 0) {
             WriteChar('0', foreground, background);
             return;

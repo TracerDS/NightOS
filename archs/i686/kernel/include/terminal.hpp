@@ -88,11 +88,26 @@ namespace Terminal {
             VGAColor foreground = VGAColor::VGA_COLOR_LIGHT_GRAY,
             VGAColor background = VGAColor::VGA_COLOR_BLACK
         ) noexcept;
+
+        void WriteFloat (
+            float value,
+            int precision = -1,
+            VGAColor foreground = VGAColor::VGA_COLOR_LIGHT_GRAY,
+            VGAColor background = VGAColor::VGA_COLOR_BLACK
+        ) noexcept {
+            WriteFloat(static_cast<double>(value), precision, foreground, background);
+        }
+
+        void WriteFloat (
+            double value,
+            int precision = -1,
+            VGAColor foreground = VGAColor::VGA_COLOR_LIGHT_GRAY,
+            VGAColor background = VGAColor::VGA_COLOR_BLACK
+        ) noexcept;
         
         void WriteHex (
             std::uint64_t value,
             bool uppercase = false,
-            bool prefix = false,
             VGAColor foreground = VGAColor::VGA_COLOR_LIGHT_GRAY,
             VGAColor background = VGAColor::VGA_COLOR_BLACK
         ) noexcept;

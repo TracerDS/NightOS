@@ -1,4 +1,5 @@
-#pragma once
+#ifndef __NOS_INIT_HPP__
+#define __NOS_INIT_HPP__
 
 #ifdef __cplusplus
 #   if __cplusplus < 201103L
@@ -12,6 +13,10 @@
 #   define __CPP_FUNC__
 #   define __CPP_START__
 #   define __CPP_END__
+#   if __STDC_VERSION__ < 202311L
+#       define static_assert _Static_assert
+#       define constexpr const
+#   endif
 #endif
 
 #ifdef _DEBUG
@@ -20,4 +25,10 @@
 #   endif
 #endif
 
+#ifdef __KERNEL_DEBUG__
+#   define __NOS_SERIAL_DEBUG__
+#endif
+
 static_assert(sizeof(void*) == 4, "Kernel must be compiled for 32-bit architecture");
+
+#endif

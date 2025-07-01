@@ -39,9 +39,10 @@ namespace IRQ {
             constexpr auto PIT_LOHIBYTE = 0b11;
 
             constexpr auto PIT_RATE_GENERATOR = 0b010;
+            constexpr auto PIT_SQUARE_GENERATOR = 0b010;
         }
         void PIC_Init() noexcept;
     }
     void IRQ_Init() noexcept;
-    void IRQ_SetClock(std::uint8_t frequency) noexcept;
+    void IRQ_SetClock(std::uint16_t frequency) noexcept;
 }

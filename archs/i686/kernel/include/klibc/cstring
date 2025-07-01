@@ -1,6 +1,11 @@
 #pragma once
 
+#include <init.hpp>
+
+__CPP_START__
 #include <klibc/string.h>
+__CPP_END__
+
 #include <cstddef>
 
 namespace std {

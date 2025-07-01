@@ -1,3 +1,7 @@
 #pragma once
 
+#include <init.hpp>
+
+__CPP_START__
 #include <klibc/assert.h>
+__CPP_END__

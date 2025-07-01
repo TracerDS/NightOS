@@ -6,6 +6,19 @@
 #include <concepts>
 
 namespace Serial {
+    namespace Ports {
+        constexpr std::uint16_t COM1 = 0x3F8;
+        constexpr std::uint16_t COM2 = 0x2F8;
+        constexpr std::uint16_t COM3 = 0x3E8;
+        constexpr std::uint16_t COM4 = 0x2E8;
+        constexpr std::uint16_t COM5 = 0x5F8;
+        constexpr std::uint16_t COM6 = 0x4F8;
+        constexpr std::uint16_t COM7 = 0x5E8;
+        constexpr std::uint16_t COM8 = 0x4E8;
+    }
+
+    bool Initialize(std::uint16_t port) noexcept;
+
     std::uint8_t ReadByte(std::uint16_t port) noexcept;
     std::uint16_t ReadWord(std::uint16_t port) noexcept;
     std::uint32_t ReadDword(std::uint16_t port) noexcept;

@@ -1,3 +1,5 @@
+section .text
+    
 extern ISR_Handler
 
 global __kernel_isr_stub__:function (__kernel_isr_stub__.end - __kernel_isr_stub__.start)

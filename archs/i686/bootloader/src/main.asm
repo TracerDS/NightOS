@@ -104,13 +104,6 @@ extern __kernel_main__
 extern __kernel_crt_init__
 extern __kernel_crt_fini__
 
-global __kernel_halt__:function (__kernel_halt__.end - __kernel_halt__.start)
-__kernel_halt__:
-	.start:
-		hlt
-	.end:
-
-
 global __bootloader_start__:function (__bootloader_start__.end - __bootloader_start__.start)
 __bootloader_start__:
 	.start:
@@ -153,7 +146,7 @@ __bootloader_start__:
 		; Kernel is mapped at 0xC0000000
 
 		mov esp, stack_top
-		mov ebp, esp
+		xor ebp, ebp ; setup null frame
 		
 		call __kernel_crt_init__
 
