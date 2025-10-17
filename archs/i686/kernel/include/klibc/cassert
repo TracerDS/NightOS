@@ -2,6 +2,6 @@
 
 #include <init.hpp>
 
-__CPP_START__
-#include <klibc/assert.h>
-__CPP_END__
+extern "C" {
+#   include <klibc/assert.h>
+}

@@ -1,13 +1,9 @@
 #include <terminal.hpp>
-#include <klibc/string.h>
+#include <klibc/cstring>
 #include <klibc/cctype>
 #include <cstdint>
 #include <utility>
 #include <limits>
-
-namespace std {
-    using ::strlen;
-}
 
 namespace Terminal {
     Terminal::Terminal() noexcept
@@ -42,7 +38,7 @@ namespace Terminal {
         VGAColor foreground,
         VGAColor background
     ) noexcept {
-        if (std::iscntrl(c)) {
+        if (klibc::iscntrl(c)) {
             return;
         }
 
@@ -67,6 +63,11 @@ namespace Terminal {
             ++m_cursorY;
         } else if (c == '\r') {
             m_cursorX = 0;
+        } else if (c == '\b') {
+            if (m_cursorX > 0) {
+                --m_cursorX;
+            }
+            WriteAt(' ', m_cursorX, m_cursorY, foreground, background);
         } else {
             ++m_cursorX;
         }
@@ -87,7 +88,7 @@ namespace Terminal {
         VGAColor foreground,
         VGAColor background
     ) noexcept {
-        std::size_t stringLen = std::strlen(string);
+        std::size_t stringLen = klibc::strlen(string);
         for (std::size_t i = 0; i < stringLen; ++i) {
             WriteChar(string[i], foreground, background);
         }
@@ -210,16 +211,18 @@ namespace Terminal {
             return;
         }
 
-        std::uint64_t divisor = 1;
-        while (value / divisor >= 16) {
-            divisor *= 16;
+        char buf[16]; // max 16 hex digits for 64-bit
+        int idx = 0;
+
+        while (value != 0) {
+            std::uint8_t digit = value & 0xF;
+            buf[idx++] = digit < 10 ? '0' + digit : (uppercase ? 'A' : 'a') + digit - 10;
+            value >>= 4;
         }
 
-        while (divisor > 0) {
-            std::uint8_t digit = value / divisor;
-            WriteChar(digit < 10 ? '0' + digit : (uppercase ? 'A' : 'a') + digit - 10, foreground, background);
-            value %= divisor;
-            divisor /= 16;
+        // print digits in reverse
+        for (auto i = idx - 1; i >= 0; --i) {
+            WriteChar(buf[i], foreground, background);
         }
     }
 }

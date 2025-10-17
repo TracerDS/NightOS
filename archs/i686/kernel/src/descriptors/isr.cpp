@@ -310,26 +310,26 @@ namespace ISR {
             : "Unknown Exception";
 
         IO::kprintf_color(
-            "\r\nISR Handler %d called!\r\n"
+            "\r\nISR Handler %lu called!\r\n"
             "Exception: %s\r\n"
-            "Code: 0x%X\r\n"
+            "Code: 0x%lX\r\n"
             "Registers:\r\n"
-            "  EAX    = 0x%X\r\n"
-            "  EBX    = 0x%X\r\n"
-            "  ECX    = 0x%X\r\n"
-            "  EDX    = 0x%X\r\n"
-            "  ESI    = 0x%X\r\n"
-            "  EDI    = 0x%X\r\n"
-            "  EBP    = 0x%X\r\n"
-            "  ESP    = 0x%X\r\n"
-            "  CS     = 0x%X\r\n"
-            "  DS     = 0x%X\r\n"
-            "  ES     = 0x%X\r\n"
-            "  FS     = 0x%X\r\n"
-            "  GS     = 0x%X\r\n"
-            "  SS     = 0x%X\r\n"
-            "  EIP    = 0x%X\r\n"
-            "  EFLAGS = 0x%X\r\n",
+            "  EAX    = 0x%lX\r\n"
+            "  EBX    = 0x%lX\r\n"
+            "  ECX    = 0x%lX\r\n"
+            "  EDX    = 0x%lX\r\n"
+            "  ESI    = 0x%lX\r\n"
+            "  EDI    = 0x%lX\r\n"
+            "  EBP    = 0x%lX\r\n"
+            "  ESP    = 0x%lX\r\n"
+            "  CS     = 0x%lX\r\n"
+            "  DS     = 0x%lX\r\n"
+            "  ES     = 0x%lX\r\n"
+            "  FS     = 0x%lX\r\n"
+            "  GS     = 0x%lX\r\n"
+            "  SS     = 0x%lX\r\n"
+            "  EIP    = 0x%lX\r\n"
+            "  EFLAGS = 0x%lX\r\n",
             Terminal::Terminal::VGAColor::VGA_COLOR_LIGHT_RED,
             Terminal::Terminal::VGAColor::VGA_COLOR_BLACK,
             regs->interrupt,
@@ -373,6 +373,7 @@ namespace ISR {
             Serial::WriteByte(IRQ::PIC::PIC_Ports::PIC1, IRQ::PIC::PIC_Flags::PIC_EOI); // Send EOI to master PIC
             return;
         }
+        __asm__ volatile("hlt");
     }
     
     constexpr bool __isr_is_error__(std::uint8_t interrupt) noexcept {

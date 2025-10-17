@@ -7,11 +7,11 @@
 
 namespace IO {
     namespace detail {
-        constexpr std::uint16_t numDigits(std::integral auto number) noexcept
+        constexpr std::uint16_t numDigits(std::integral auto number, std::uint8_t base = 10) noexcept
         {
             std::uint16_t digits = 0;
             while (number) {
-                number /= 10;
+                number /= base;
                 digits++;
             }
             return digits;
@@ -31,80 +31,6 @@ namespace IO {
             }
             return digits;
         }
-    }
-
-    std::size_t __ksprintf__core__ (
-        char* buffer,
-        const char* format,
-        va_list args
-    ) noexcept {
-        bool readOnly = !buffer;
-        std::size_t chars = 0;
-
-        while (*format) {
-            if (*format != '%') {
-                ++chars;
-
-                if (!readOnly) {
-                    *buffer++ = *format++;
-                }
-                continue;
-            }
-            ++format;
-
-            if (*format == '\0')
-                break;
-
-            // %%
-            if (*format == '%') {
-                ++chars;
-                if (!readOnly) {
-                    *buffer++ = '%';
-                }
-                ++format;
-                continue;
-            }
-
-            bool leftAlign = false;
-            bool plusSign = false;
-            bool spaceSign = false;
-            bool prefix = false;
-            bool zeroPad = false;
-
-            // Check flags
-            while (*format == '-' || *format == '+' || *format == ' ' || *format == '#' || *format == '0') {
-                ++chars;
-                if (!readOnly) {
-                    *buffer++ = *format;
-                }
-                switch (*format++) {
-                    case '-': leftAlign = true; break;
-                    case '+': plusSign  = true; break;
-                    case ' ': spaceSign = true; break;
-                    case '#': prefix    = true; break;
-                    case '0': zeroPad   = true; break;
-                }
-            }
-
-            int width;
-
-            // Check width
-            if (*format >= '0' && *format <= '9') {
-                while (*format >= '0' && *format <= '9') {
-                    ++chars;
-                    width = width * 10 + (*format++ - '0');
-                }
-            } else if (*format == '*') {
-                ++chars;
-                width = va_arg(args, int);
-                if (width < 0) {
-                    width = -width;
-                    leftAlign = true;
-                }
-                ++format;
-            }
-        }
-        return chars;
     }
 
     void __kprintf_core__ (
@@ -258,6 +184,7 @@ namespace IO {
                         case LEN_HH: num = static_cast<std::int8_t>(va_arg(args, int)); break;
                         case LEN_L:  num = va_arg(args, long); break;
                         case LEN_LL: num = va_arg(args, long long); break;
+                        case LEN_J:  num = va_arg(args, std::intmax_t); break;
                         case LEN_Z:  num = static_cast<std::int64_t>(va_arg(args, std::size_t)); break;
                         case LEN_T:  num = static_cast<std::int64_t>(va_arg(args, std::ptrdiff_t)); break;
                         default:     num = va_arg(args, int);
@@ -289,23 +216,23 @@ namespace IO {
                     std::uint8_t numWidth;
                     switch (length) {
                         case LEN_HH: {
-                            num = static_cast<std::uint8_t>(va_arg(args, int));
+                            num = static_cast<std::uint8_t>(va_arg(args, unsigned int));
                             numWidth = sizeof(std::uint8_t);
                             break;
                         }
                         case LEN_H: {
-                            num = static_cast<std::uint16_t>(va_arg(args, int));
+                            num = static_cast<std::uint16_t>(va_arg(args, unsigned int));
                             numWidth = sizeof(std::uint16_t);
                             break;
                         }
                         case LEN_L: {
-                            num = va_arg(args, std::uint32_t);
-                            numWidth = sizeof(std::uint32_t);
+                            num = va_arg(args, unsigned long);
+                            numWidth = sizeof(unsigned long);
                             break;
                         }
                         case LEN_LL: {
-                            num = va_arg(args, std::uint64_t);
-                            numWidth = sizeof(std::uint64_t);
+                            num = va_arg(args, unsigned long long);
+                            numWidth = sizeof(unsigned long long);
                             break;
                         }
                         case LEN_J: {
@@ -319,13 +246,13 @@ namespace IO {
                             break;
                         }
                         case LEN_T: {
-                            num = va_arg(args, unsigned std::ptrdiff_t);
-                            numWidth = sizeof(unsigned std::ptrdiff_t);
+                            num = va_arg(args, std::size_t);
+                            numWidth = sizeof(std::size_t);
                             break;
                         }
                         default: {
-                            num = va_arg(args, std::uint32_t);
-                            numWidth = sizeof(std::uint32_t);
+                            num = va_arg(args, unsigned int);
+                            numWidth = sizeof(unsigned int);
                             break;
                         }
                     }
@@ -334,6 +261,14 @@ namespace IO {
                     if (!leftAlign && width > 1) {
                         for (int i = 0; i < width - numWidth; ++i) {
                             Terminal::g_Terminal.WriteChar(' ', foreground, background);
+                        }
+                    }
+
+                    auto digits = detail::numDigits(num, 8);
+
+                    if (zeroPad && width > 0) {
+                        for (auto i = 0; i < width - digits; ++i) {
+                            Terminal::g_Terminal.WriteChar('0', foreground, background);
                         }
                     }
 
@@ -346,67 +281,7 @@ namespace IO {
                     }
                     break;
                 }
-                case 'x': {
-                    std::uint64_t num;
-                    std::uint8_t numWidth;
-                    switch (length) {
-                        case LEN_HH: {
-                            num = static_cast<std::uint8_t>(va_arg(args, int));
-                            numWidth = sizeof(std::uint8_t);
-                            break;
-                        }
-                        case LEN_H: {
-                            num = static_cast<std::uint16_t>(va_arg(args, int));
-                            numWidth = sizeof(std::uint16_t);
-                            break;
-                        }
-                        case LEN_L: {
-                            num = va_arg(args, std::uint32_t);
-                            numWidth = sizeof(std::uint32_t);
-                            break;
-                        }
-                        case LEN_LL: {
-                            num = va_arg(args, std::uint64_t);
-                            numWidth = sizeof(std::uint64_t);
-                            break;
-                        }
-                        case LEN_J: {
-                            num = va_arg(args, std::uintmax_t);
-                            numWidth = sizeof(std::uintmax_t);
-                            break;
-                        }
-                        case LEN_Z: {
-                            num = va_arg(args, std::size_t);
-                            numWidth = sizeof(std::size_t);
-                            break;
-                        }
-                        case LEN_T: {
-                            num = va_arg(args, unsigned std::ptrdiff_t);
-                            numWidth = sizeof(unsigned std::ptrdiff_t);
-                            break;
-                        }
-                        default: {
-                            num = va_arg(args, std::uint32_t);
-                            numWidth = sizeof(std::uint32_t);
-                            break;
-                        }
-                    }
-                    numWidth *= 2; // Each hex digit takes 2 characters
-                    if (!leftAlign && width > 1) {
-                        for (auto i = 0; i < width - numWidth; ++i) {
-                            Terminal::g_Terminal.WriteChar(' ', foreground, background);
-                        }
-                    }
-
-                    Terminal::g_Terminal.WriteHex(num, false, foreground, background);
-                    
-                    if (leftAlign && width > 1) {
-                        for (auto i = 0; i < width - numWidth; ++i) {
-                            Terminal::g_Terminal.WriteChar(' ', foreground, background);
-                        }
-                    }
-                    break;
-                }
+                case 'x':
                 case 'X': {
                     std::uint64_t num;
                     std::uint8_t numWidth;
@@ -422,13 +297,13 @@ namespace IO {
                             break;
                         }
                         case LEN_L: {
-                            num = va_arg(args, std::uint32_t);
-                            numWidth = sizeof(std::uint32_t);
+                            num = va_arg(args, unsigned long);
+                            numWidth = sizeof(unsigned long);
                             break;
                         }
                         case LEN_LL: {
-                            num = va_arg(args, std::uint64_t);
-                            numWidth = sizeof(std::uint64_t);
+                            num = va_arg(args, unsigned long long);
+                            numWidth = sizeof(unsigned long long);
                             break;
                         }
                         case LEN_J: {
@@ -442,13 +317,13 @@ namespace IO {
                             break;
                         }
                         case LEN_T: {
-                            num = va_arg(args, unsigned std::ptrdiff_t);
-                            numWidth = sizeof(unsigned std::ptrdiff_t);
+                            num = va_arg(args, std::size_t);
+                            numWidth = sizeof(std::size_t);
                             break;
                         }
                         default: {
-                            num = va_arg(args, std::uint32_t);
-                            numWidth = sizeof(std::uint32_t);
+                            num = va_arg(args, unsigned int);
+                            numWidth = sizeof(unsigned int);
                             break;
                         }
                     }
@@ -459,7 +334,20 @@ namespace IO {
                         }
                     }
 
-                    Terminal::g_Terminal.WriteHex(num, true, foreground, background);
+                    auto digits = detail::numDigits(num, 16);
+
+                    if (zeroPad && width > 0) {
+                        if (width < digits) {
+                            width = digits;
+                        }
+                        if (digits == 0) {
+                            --width;
+                        }
+                        for (auto i = 0; i < width - digits; ++i) {
+                            Terminal::g_Terminal.WriteChar('0', foreground, background);
+                        }
+                    }
+                    Terminal::g_Terminal.WriteHex(num, (*format) == 'X', foreground, background);
                     
                     if (leftAlign && width > 1) {
                         for (auto i = 0; i < width - numWidth; ++i) {
@@ -496,11 +384,11 @@ namespace IO {
                             break;
                         }
                         case LEN_T: {
-                            num = va_arg(args, unsigned std::ptrdiff_t);
+                            num = va_arg(args, std::size_t);
                             break;
                         }
                         default: {
-                            num = va_arg(args, std::uint32_t);
+                            num = va_arg(args, unsigned int);
                             break;
                         }
                     }
@@ -540,7 +428,7 @@ namespace IO {
                     break;
                 }
                 case 'p': {
-                    auto data = reinterpret_cast<uintptr_t>(va_arg(args, void*));
+                    auto data = reinterpret_cast<std::uintptr_t>(va_arg(args, void*));
                     
                     if (!leftAlign && width > 1) {
                         for (int i = 1; i < width; ++i) {
@@ -560,35 +448,6 @@ namespace IO {
                 }
             }
 
-                
-            /*
-            if (current == 'd') {
-            } else if (current == 'u') {
-                std::uint32_t num = va_arg(args, std::uint32_t);
-                Terminal::g_Terminal.WriteNumber(static_cast<std::uint64_t>(num), 10, foreground, background);
-            } else if (current == 'x') {
-            } else if (current == 'X') {
-                std::uint32_t num = va_arg(args, std::uint32_t);
-                Terminal::g_Terminal.WriteHex(num, true, foreground, background);
-            } else if (current == 'p') {
-                void* ptr = va_arg(args, void*);
-                Terminal::g_Terminal.WriteHex(
-                    reinterpret_cast<std::uintptr_t>(ptr),
-                    false, foreground, background
-                );
-            } else if (current == 'b') {
-                std::uint32_t num = va_arg(args, std::uint32_t);
-                Terminal::g_Terminal.WriteNumber(num, 2, foreground, background);
-            } else if (current == 'o') {
-                std::uint32_t num = va_arg(args, std::uint32_t);
-                Terminal::g_Terminal.WriteNumber(num, 8, foreground, background);
-            } else if (current == '%') {
-                Terminal::g_Terminal.WriteChar('%', foreground, background);
-            } else {
-                Terminal::g_Terminal.WriteChar('%', foreground, background);
-                Terminal::g_Terminal.WriteChar(*format, foreground, background);
-            }
-            */
             ++format;
         }
     }

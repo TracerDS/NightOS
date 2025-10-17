@@ -1,4 +1,5 @@
-#pragma once
+#ifndef __KLIBC_ASSERT_H__
+#define __KLIBC_ASSERT_H__
 
 #include <init.hpp>
 
@@ -13,4 +14,6 @@ void __kassert(const char* msg, const char* file, int line, const char* function
     )
 #else
 #   define assert(condition) static_cast<void>(0)
+#endif
+
 #endif

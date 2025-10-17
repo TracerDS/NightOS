@@ -7,7 +7,6 @@ __kernel_load_page_directory__:
         mov ebp, esp
 
         mov eax, dword [ebp + 8] ; Load the page directory into CR3
-        mov eax, dword [eax]
         mov cr3, eax
         xor eax, eax ; Clear EAX to avoid any garbage value
 
@@ -24,8 +23,53 @@ __kernel_enable_paging__:
         mov eax, cr0
         or eax, 1 << 31 ; Set the PG bit in CR0 to enable paging
         mov cr0, eax
-        xor eax, eax ; Clear EAX to avoid any garbage value
 
+        xor eax, eax ; Clear EAX to avoid any garbage value
+        pop ebp
+        ret
+    .end:
+
+global __kernel_disable_paging__:function (__kernel_disable_paging__.end - __kernel_disable_paging__.start)
+__kernel_disable_paging__:
+    .start:
+        push ebp
+        mov ebp, esp
+
+        mov eax, cr0
+        and eax, ~(1 << 31) ; Clear the PG bit in CR0 to disable paging
+        mov cr0, eax
+
+        xor eax, eax ; Clear EAX to avoid any garbage value
+        pop ebp
+        ret
+    .end:
+
+global __kernel_paging_enable_pse__:function (__kernel_paging_enable_pse__.end - __kernel_paging_enable_pse__.start)
+__kernel_paging_enable_pse__:
+    .start:
+        push ebp
+        mov ebp, esp
+
+        mov eax, cr4
+        or eax, 1 << 4
+        mov cr4, eax
+
+        xor eax, eax ; Clear EAX to avoid any garbage value
+        pop ebp
+        ret
+    .end:
+
+global __kernel_paging_enable_pae__:function (__kernel_paging_enable_pae__.end - __kernel_paging_enable_pae__.start)
+__kernel_paging_enable_pae__:
+    .start:
+        push ebp
+        mov ebp, esp
+
+        mov eax, cr4
+        or eax, 1 << 5
+        mov cr4, eax
+
+        xor eax, eax ; Clear EAX to avoid any garbage value
         pop ebp
         ret
     .end:

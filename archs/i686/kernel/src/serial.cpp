@@ -146,30 +146,32 @@ namespace Serial {
         }
     }
     
+#ifdef __NOS_SERIAL_DEBUG__
+    static constexpr std::uint64_t __gs_max_wait_timeout__ = 100000;
+#endif
+
     void __serial_wait_until_ready_to_read__(std::uint16_t port) noexcept {
 #ifdef __NOS_SERIAL_DEBUG__
-        static std::uint32_t __gs_timeout__ = 0;
-        static constexpr std::uint32_t __gs_max_timeout__ = 1000;
+        static std::uint64_t __gs_timeout__ = 0;
 #endif
         // Wait until data is ready
         while (!__serial_is_ready_to_read__(port)) {
 #ifdef __NOS_SERIAL_DEBUG__
             ++__gs_timeout__;
-            assert(__gs_timeout__ < __gs_max_timeout__); // Ensure we don't loop indefinitely
+            assert(__gs_timeout__ < __gs_max_wait_timeout__); // Ensure we don't loop indefinitely
 #endif
         }
     }
 
     void __serial_wait_until_ready_to_write__(std::uint16_t port) noexcept {
 #ifdef __NOS_SERIAL_DEBUG__
-        static std::uint32_t __gs_timeout__ = 0;
-        static constexpr std::uint32_t __gs_max_timeout__ = 1000;
+        static std::uint64_t __gs_timeout__ = 0;
 #endif
         // Wait until data is ready
         while (!__serial_is_ready_to_write__(port)) {
 #ifdef __NOS_SERIAL_DEBUG__
             ++__gs_timeout__;
-            assert(__gs_timeout__ < __gs_max_timeout__); // Ensure we don't loop indefinitely
+            assert(__gs_timeout__ < __gs_max_wait_timeout__); // Ensure we don't loop indefinitely
 #endif
         }
     }

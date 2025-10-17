@@ -23,11 +23,10 @@ namespace Log {
         IO::__kprintf_core__(fmt, args);
         
         va_end(args);
-        
     }
 
     void Logger::log(const char* message) {
-        auto msgLen = std::strlen(message);
+        auto msgLen = klibc::strlen(message);
         for (std::size_t i = 0; i < msgLen; ++i) {
             Serial::WriteByte(Serial::Ports::COM1, message[i]); // 0x3F8 is the default COM1 port
         }

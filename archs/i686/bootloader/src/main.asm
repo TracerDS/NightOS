@@ -104,6 +104,9 @@ extern __kernel_main__
 extern __kernel_crt_init__
 extern __kernel_crt_fini__
 
+extern __kernel_paging_enable_pae__
+extern __kernel_paging_enable_pse__
+
 global __bootloader_start__:function (__bootloader_start__.end - __bootloader_start__.start)
 __bootloader_start__:
 	.start:
@@ -125,19 +128,18 @@ __bootloader_start__:
 		; setup initial paging
 
 	.paging.start:
-		;lea ecx, dword [__INIT_PAGE_TABLE__ - KERNEL_VIRTUAL_ADDRESS]
-		;or ecx, 11b
-		;mov dword [__INIT_PAGE_DIRECTORY__ - KERNEL_VIRTUAL_ADDRESS], ecx
-
+		; Load page directory. Subtract the virtual addr to calculate a physical address
 		lea eax, dword [__INIT_PAGE_DIRECTORY__ - KERNEL_VIRTUAL_ADDRESS]
 		mov cr3, eax
 
+		; Enable PSE
 		mov eax, cr4
 		or eax, 10000b
 		mov cr4, eax
 
+		; Enable paging
 		mov eax, cr0
-		or eax, 0x80000000
+		or eax, 1 << 31
 		mov cr0, eax
 	.paging.end:
 
@@ -171,7 +173,8 @@ __INIT_PAGE_DIRECTORY__:
 	.start:
 		; Identity map the first 4MB of memory
 		dd (0x400000 * 0) | 10000011b
-		times 768 - 1 dd 0
+
+		times 768 - 1 dd 0 ; clear the rest
 
 		dd (BOOT_START >> 22) | 10000011b ; Map the kernel at 0xC0000000
 		times 1024 - 768 - 1 dd 0

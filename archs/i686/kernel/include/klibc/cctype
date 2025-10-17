@@ -2,11 +2,11 @@
 
 #include <init.hpp>
 
-__CPP_START__
-#include <klibc/ctype.h>
-__CPP_END__
+extern "C" {
+#   include <klibc/ctype.h>
+}
 
-namespace std {
+namespace klibc {
     using ::isalnum;
     using ::isalpha;
     using ::isblank;

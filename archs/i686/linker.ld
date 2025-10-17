@@ -15,7 +15,8 @@ PHDRS
    kernel image. */
 SECTIONS
 {
-	. = 0x00200000;
+	. = 0x00100000; /* 1MB */
+	__kernel_boot_start__ = .;
 
 	.multiboot ALIGN(4K) :
 	{
@@ -33,6 +34,27 @@ SECTIONS
 		__preboot_end__ = .;
 	}
 
+	/* Include the list of initialization functions sorted. */
+	.init_array :
+	{
+		__init_array_start = .;
+		crt.o(.init_array)
+		KEEP (*(SORT(EXCLUDE_FILE(crt.o) .init_array.*)))
+		KEEP (*(EXCLUDE_FILE(crt.o) .init_array))
+		__init_array_end = .;
+	}
+
+	/* Include the list of termination functions sorted. */
+	.fini_array :
+	{
+		__fini_array_start = .;
+		crt.o(.fini_array)
+		KEEP (*(SORT(EXCLUDE_FILE(crt.o) .fini_array.*)))
+		KEEP (*(EXCLUDE_FILE(crt.o) .fini_array))
+		__fini_array_end = .;
+	}
+
+	__kernel_post_boot_start__ = .;
 	. += 0xC0000000;
 	__kernel_start__ = .;
 	.text ALIGN(4K) : AT(ADDR(.text) - 0xC0000000)
@@ -68,24 +90,4 @@ SECTIONS
 	} : bss
 
 	__kernel_end__ = .;
-
-	/* Include the list of initialization functions sorted. */
-	.init_array :
-	{
-		__init_array_start = .;
-		crt.o(.init_array)
-		KEEP (*(SORT(EXCLUDE_FILE(crt.o) .init_array.*)))
-		KEEP (*(EXCLUDE_FILE(crt.o) .init_array))
-		__init_array_end = .;
-	}
-
-	/* Include the list of termination functions sorted. */
-	.fini_array :
-	{
-		__fini_array_start = .;
-		crt.o(.fini_array)
-		KEEP (*(SORT(EXCLUDE_FILE(crt.o) .fini_array.*)))
-		KEEP (*(EXCLUDE_FILE(crt.o) .fini_array))
-		__fini_array_end = .;
-	}
 }

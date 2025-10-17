@@ -2,13 +2,13 @@
 
 #include <init.hpp>
 
-__CPP_START__
-#include <klibc/string.h>
-__CPP_END__
+extern "C" {
+#   include <klibc/string.h>
+}
 
 #include <cstddef>
 
-namespace std {
+namespace klibc {
     using ::strlen;
 
 #ifdef __STDC_WANT_LIB_EXT1__

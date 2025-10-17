@@ -9,4 +9,4 @@ fi
 symbol_target="${target%.*}.sym"
 
 objcopy --only-keep-debug $target $symbol_target
-objcopy --strip-debug $target
+objcopy --strip-unneeded $target

@@ -1,22 +1,8 @@
 #ifndef __NOS_INIT_HPP__
 #define __NOS_INIT_HPP__
 
-#ifdef __cplusplus
-#   if __cplusplus < 201103L
-#       define noexcept
-#   endif
-#   define __CPP_FUNC__ extern "C"
-#   define __CPP_START__ __CPP_FUNC__ {
-#   define __CPP_END__ }
-#else
-#   define noexcept
-#   define __CPP_FUNC__
-#   define __CPP_START__
-#   define __CPP_END__
-#   if __STDC_VERSION__ < 202311L
-#       define static_assert _Static_assert
-#       define constexpr const
-#   endif
+#ifndef __cplusplus
+#   error "Kernel must be compiled as a C++ target"
 #endif
 
 #ifdef _DEBUG
@@ -30,5 +16,21 @@
 #endif
 
 static_assert(sizeof(void*) == 4, "Kernel must be compiled for 32-bit architecture");
+
+#include <concepts>
+#include <cstdint>
+
+constexpr auto align_up(std::integral auto value, std::integral auto alignment) noexcept {
+    return (value + alignment - 1) & ~(alignment - 1);
+}
+
+template <typename Type>
+constexpr auto align_up(Type* value, std::integral auto alignment) noexcept {
+    return align_up(reinterpret_cast<std::uintptr_t>(value), alignment);
+}
+
+constexpr auto align_down(std::integral auto value, std::integral auto alignment) noexcept {
+    return value & ~(alignment - 1);
+}
 
 #endif

@@ -15,7 +15,9 @@ fi
 
 args=${@:2}
 
-qemu-system-i386 -vga virtio -cdrom $target $args \
+qemu-system-i386 \
+    -m 4G \
+    -vga virtio -cdrom $target $args \
     -D "$SCRIPT_DIR/../logs/qemu.log" \
     -d int,cpu_reset \
     -monitor stdio \

@@ -9,13 +9,13 @@ namespace StackFrame {
         std::uint32_t eip;
     };
 
-    inline void PrintFrames(int maxFrames) {
+    inline void PrintFrames(std::uint32_t maxFrames) noexcept {
         Frame* currentFrame = reinterpret_cast<Frame*>(__builtin_frame_address(0));
 
         IO::kprintf("Stack trace:\r\n");
-        for (auto i=0; currentFrame && i < maxFrames; ++i) {
+        for (std::uint32_t i = 0; currentFrame && i < maxFrames; ++i) {
             IO::kprintf(
-                "- Frame %d: EBP=0x%08x, EIP=0x%08x\r\n",
+                "- Frame %ld: EBP=0x%08lx, EIP=0x%08lx\r\n",
                 i, 
                 reinterpret_cast<std::uintptr_t>(currentFrame->ebp), 
                 currentFrame->eip

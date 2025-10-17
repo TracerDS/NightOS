@@ -23,6 +23,7 @@ AR := $(OPT_DIR)/$(ARCH_NAME)-elf-ar
 CXXFLAGS := -march=$(ARCH_NAME) -std=c++2b -masm=intel \
 	-fno-exceptions -fno-rtti -ffreestanding \
 	-nostdlib -nostartfiles -nodefaultlibs -mno-red-zone \
+	-Wall -Wextra -Wpedantic \
 	-I$(HPP_DIR) \
 	-D__MULTIBOOT__ -D_DEBUG \
 	-g -fno-eliminate-unused-debug-types

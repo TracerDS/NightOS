@@ -71,8 +71,7 @@ namespace detail {
     struct FloatTraits<float> {
         using float_t = float;
         using int_t = std::int32_t;
-
-        using uint_t = unsigned int_t;
+        using uint_t = std::uint32_t;
         using limits = std::numeric_limits<float_t>;
 
         constexpr static std::uint8_t EXPONENT_WIDTH = 8;
@@ -120,8 +119,7 @@ namespace detail {
     struct FloatTraits<double> {
         using float_t = double;
         using int_t = std::int64_t;
-
-        using uint_t = unsigned int_t;
+        using uint_t = std::uint64_t;
         using limits = std::numeric_limits<float_t>;
 
         constexpr static std::uint8_t EXPONENT_WIDTH = 11;
