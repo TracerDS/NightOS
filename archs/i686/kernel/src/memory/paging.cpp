@@ -1,4 +1,4 @@
-#include <paging.hpp>
+#include <memory/paging.hpp>
 
 #include <cstdint>
 #include <utility>
@@ -31,8 +31,10 @@ namespace Paging {
         auto kernel_end_phys = kernel_end_int - kernel_offset;
         auto kernel_size = kernel_end_phys - kernel_start_phys;
 
-        // size = 0x114010 - 0x10105c = 0x12fb4
-        auto kernel_pages = align_up(kernel_size, ByteUnits::MB4) / ByteUnits::MB4;
+        auto kernel_pages = Utils::align_up(
+            kernel_size,
+            ByteUnits::MB4
+        ) / ByteUnits::MB4;
 
         // Memory map first 4MBs
         map_page(0x0, 0x0, DEFAULT_FLAGS);
@@ -103,7 +105,7 @@ namespace Paging {
 
         if (!(pde & PageFlags::PAGE_PRESENT)) {
             // Page not present
-            return 0xFFFFFFFF;
+            return static_cast<std::uint32_t>(-1);
         }
 
         if (pde & PageFlags::PAGE_SIZE_ENABLE) { // PS bit = 1 -> 4MB page
@@ -115,7 +117,7 @@ namespace Paging {
             std::uint32_t pte = pageTable[pageTableIndex];
 
             if (!(pte & PageFlags::PAGE_PRESENT)) {
-                return 0xFFFFFFFF; // Page not present
+                return static_cast<std::uint32_t>(-1); // Page not present
             }
 
             auto phys_base = pte & 0xFFFFF000;
@@ -148,6 +150,6 @@ namespace Paging {
                 }
             }
         }
-        return 0xFFFFFFFF; // not mapped
+        return static_cast<std::uint32_t>(-1); // not mapped
     }
 }

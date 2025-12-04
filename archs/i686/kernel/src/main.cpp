@@ -1,21 +1,22 @@
 #include <init.hpp>
 #include <cstddef>
 #include <cstdint>
+#include <array>
 
 #include <terminal.hpp>
 
 #include <descriptors/gdt.hpp>
 #include <descriptors/idt.hpp>
 #include <descriptors/isr.hpp>
+#include <descriptors/irq.hpp>
+#include <memory/paging.hpp>
+#include <memory/pmm.hpp>
 #include <logger.hpp>
 #include <io.hpp>
 #include <serial.hpp>
 #include <cpuid.hpp>
-#include <paging.hpp>
 #include <stackframe.hpp>
-#include <descriptors/irq.hpp>
 #include <keyboard.hpp>
-#include <memory/mm.hpp>
 #include <tests.hpp>
 
 #include <klibc/cassert>
@@ -23,8 +24,6 @@
 
 #include <video/pixels.hpp>
 #include <grub/multiboot.hpp>
-
-#include <memory/allocator.hpp>
 
 #define COLOR_BLACK     0x00000000
 #define COLOR_WHITE     0x00FFFFFF
@@ -46,88 +45,8 @@ extern std::uint8_t __bss_end__[];
 extern std::uint8_t __kernel_start__[];
 extern std::uint8_t __kernel_end__[];
 
-std::uint8_t* __free_memory_beginning__;
-std::uint8_t* __free_memory_end__;
 
-static void remap_memory_sections(multiboot_info* mb_info) noexcept {
-	auto* mmap_entry = reinterpret_cast<multiboot_memory_map_t*>(mb_info->mmap_addr);
-
-	// Compute end‐of‐buffer pointer:
-	std::uintptr_t buffer_end = mb_info->mmap_addr + mb_info->mmap_length;
-
-	std::uint64_t nextAvailAddr = 0;
-
-	while (reinterpret_cast<std::uintptr_t>(mmap_entry) < buffer_end) {
-		std::uint64_t base = mmap_entry->addr;
-		std::uint64_t length = mmap_entry->len;
-		std::uint32_t type = mmap_entry->type;
-
-		auto pagesAmount = align_up(length, Paging::ByteUnits::KB4) / Paging::ByteUnits::KB4;
-
-		if (base < nextAvailAddr) {
-			if (base + length < nextAvailAddr) {
-				// Already mapped, continue
-				continue;
-			}
-		}
-
-		if (type == MULTIBOOT_MEMORY_RESERVED) {
-			IO::kprintf("Reserved: 0x%08llX - 0x%08llX -> 0x%08llX - 0x%08llX\r\n",
-				base, base + length - 1, nextAvailAddr, nextAvailAddr + length - 1
-			);
-
-			for (auto i = 0; i < pagesAmount; ++i) {
-				Paging::map_page(
-					base + i * Paging::ByteUnits::KB4,
-					nextAvailAddr + i * Paging::ByteUnits::KB4,
-					Paging::PageFlags::PAGE_PRESENT | Paging::PageFlags::PAGE_READ_WRITE
-				);
-			}
-			
-			nextAvailAddr = align_up(nextAvailAddr + length, Paging::ByteUnits::KB4);
-		}
-
-		mmap_entry = reinterpret_cast<multiboot_memory_map_t*>(
-			reinterpret_cast<uint8_t*>(mmap_entry)
-			+ mmap_entry->size + sizeof(mmap_entry->size)
-		);
-	}
-
-	auto freeMemBeg = nextAvailAddr;
-
-	mmap_entry = reinterpret_cast<multiboot_memory_map_t*>(mb_info->mmap_addr);
-	while (reinterpret_cast<std::uintptr_t>(mmap_entry) < buffer_end) {
-		std::uint64_t base = mmap_entry->addr;
-		std::uint64_t length = mmap_entry->len;
-		std::uint32_t type = mmap_entry->type;
-
-		if (type == MULTIBOOT_MEMORY_AVAILABLE) {
-			IO::kprintf("Free: 0x%08llX - 0x%08llX -> 0x%08llX - 0x%08llX\r\n",
-				base, base + length, nextAvailAddr, nextAvailAddr + length
-			);
-
-			Paging::map_page(
-				base,
-				nextAvailAddr,
-				Paging::PageFlags::PAGE_PRESENT | Paging::PageFlags::PAGE_READ_WRITE |
-					Paging::PageFlags::PAGE_USER_SUPERVISOR
-			);
-			
-			nextAvailAddr += length;
-		}
-
-		mmap_entry = reinterpret_cast<multiboot_memory_map_t*>(
-			reinterpret_cast<uint8_t*>(mmap_entry)
-			+ mmap_entry->size + sizeof(mmap_entry->size)
-		);
-	}
-
-	__free_memory_beginning__ = reinterpret_cast<std::uint8_t*>(freeMemBeg);
-	__free_memory_end__ = reinterpret_cast<std::uint8_t*>(nextAvailAddr);
-}
-
-void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info) 
-{    
+void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info) noexcept {
 	// Check magic number
 	if (magic != MULTIBOOT_BOOTLOADER_MAGIC) {
 		// Not booted by GRUB
@@ -153,10 +72,6 @@ void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info)
 
 	// Paging enabled, set to our page directory in src/paging.cpp
 
-	remap_memory_sections(mb_info);
-
-	IO::kprintf("Free memory: 0x%X -> 0x%X\r\n", __free_memory_beginning__, __free_memory_end__);
-
 	// Initialize terminal interface
 
 	//Serial::Initialize(Serial::Ports::COM1);
@@ -166,10 +81,20 @@ void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info)
 	IDT::IDT_Initialize();
 	ISR::ISR_Initialize();
 	IRQ::IRQ_Init();
+	
+	Memory::Init(mb_info);
+
+	char* addr = (char*)Memory::request_pages(1);
+	IO::kprintf("Allocated page at: 0x%X\r\n", addr);
+	
+	return;
 
 	//Log::Logger::log("Logging is working!");
 
-	IO::kprintf_color("Hello\nKernel\nWorld\r\n", Terminal::Terminal::VGAColor::VGA_COLOR_LIGHT_MAGENTA);
+	IO::kprintf_color(
+		"Hello\nKernel\nWorld\r\n",
+		Terminal::Terminal::VGAColor::VGA_COLOR_LIGHT_MAGENTA
+	);
 	IO::kprintf("__cplusplus: %d\r\n", __cplusplus);
 	IO::kprintf("CPUID supported: %s\r\n", __kernel_check_cpuid__() ? "true" : "false");
 
@@ -178,8 +103,6 @@ void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info)
 	IO::kprintf("CPUID vendor: %s\r\n", vendor);
 	IO::kprintf("vendor addr: 0x%X\r\n", &vendor);
 	IO::kprintf("LAPIC built in: %s\r\n", CPUID::LAPIC_Supported() ? "true" : "false");
-
-	//Paging::Paging_Initialize();
 
 	ISR::ISR_RegisterHandler(0x20, [](ISR::ISR_RegistersState* regs) {
 		if (false) {
@@ -192,22 +115,6 @@ void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info)
 		}
 	});
 
-	
-	namespace LL = Memory::Allocators::LinkedList;
-	// LL::Init();
-	// auto mem = (char*)LL::kmalloc(14); // Test allocation
-	// if (!mem) {
-	// 	IO::kprintf("kmalloc failed!\r\n");
-	// 	while (true) { __asm__("hlt"); }
-	// }
-	// IO::kprintf("Allocated 14 bytes at 0x%X\r\n", mem);
-	/*
-
-	mem = "Hello, World!";
-	IO::kprintf("String at 0x%X: %s\r\n", mem);
-
-	LL::kfree(mem);
-	*/
 	IO::kprintf("Data: %X\r\n", *(std::uint8_t*)(0x70400 + 0xC0000000) );
 
 	if (true) {

@@ -2,8 +2,15 @@
 
 #include <cstdint>
 
-inline void draw_pixel(uint32_t *framebuffer, uint32_t width, uint32_t height, 
-                uint32_t pitch, int x, int y, uint32_t color) {
+inline void draw_pixel(
+    uint32_t *framebuffer,
+    uint32_t width,
+    uint32_t height,
+    uint32_t pitch,
+    uint32_t x,
+    uint32_t y,
+    uint32_t color
+) {
     if (x >= width || y >= height) return;
     
     // Calculate pixel position

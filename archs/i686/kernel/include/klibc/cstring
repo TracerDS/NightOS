@@ -6,10 +6,8 @@ extern "C" {
 #   include <klibc/string.h>
 }
 
-#include <cstddef>
-
 namespace klibc {
-    using ::strlen;
+    std::size_t strlen(const char* str);
 
 #ifdef __STDC_WANT_LIB_EXT1__
     using ::strnlen_s;

@@ -57,10 +57,12 @@ SECTIONS
 	__kernel_post_boot_start__ = .;
 	. += 0xC0000000;
 	__kernel_start__ = .;
+	
 	.text ALIGN(4K) : AT(ADDR(.text) - 0xC0000000)
 	{
 		__text_start__ = .;
 		*(.text)
+		*(.text.*)
 		__text_end__ = .;
 	} : text
 
@@ -69,6 +71,7 @@ SECTIONS
 	{
 		__rodata_start__ = .;
 		*(.rodata)
+		*(.rodata.*)
 		__rodata_end__ = .;
 	} : rodata
 
@@ -77,6 +80,7 @@ SECTIONS
 	{
 		__data_start__ = .;
 		*(.data)
+		*(.data.*)
 		__data_end__ = .;
 	} : data
 
@@ -86,6 +90,7 @@ SECTIONS
 		__bss_start__ = .;
 		*(COMMON)
 		*(.bss)
+		*(.bss.*)
 		__bss_end__ = .;
 	} : bss
 

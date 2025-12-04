@@ -15,6 +15,10 @@ fi
 
 args=${@:2}
 
+if [[ ! -d "$SCRIPT_DIR/../logs" ]]; then
+	mkdir "$SCRIPT_DIR/../logs"
+fi
+
 qemu-system-i386 \
     -m 4G \
     -vga virtio -cdrom $target $args \

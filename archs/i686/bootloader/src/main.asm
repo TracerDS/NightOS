@@ -108,6 +108,7 @@ extern __kernel_paging_enable_pae__
 extern __kernel_paging_enable_pse__
 
 global __bootloader_start__:function (__bootloader_start__.end - __bootloader_start__.start)
+
 __bootloader_start__:
 	.start:
 		; State:
@@ -142,9 +143,7 @@ __bootloader_start__:
 		or eax, 1 << 31
 		mov cr0, eax
 	.paging.end:
-
 		; paging enabled.
-		; identity mapped the first few MB of memory
 		; Kernel is mapped at 0xC0000000
 
 		mov esp, stack_top
@@ -157,6 +156,8 @@ __bootloader_start__:
 
 		; Enter the high-level kernel.
 		call __kernel_main__
+
+		add esp, 8
 
 		call __kernel_crt_fini__
 

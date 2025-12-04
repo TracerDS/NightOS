@@ -1,5 +1,7 @@
-#include <klibc/string.h>
 #include <cstdint>
+
+extern "C" {
+#include <klibc/string.h>
 
 size_t strlen(const char* str) {
     size_t length = 0;
@@ -55,4 +57,12 @@ void* memcpy(void* dest, const void* src, size_t count) {
         p1[i] = p2[i];
     }
     return dest;
+}
+
+}
+
+namespace klibc {
+    std::size_t strlen(const char* str) {
+        return ::strlen(str);
+    }
 }

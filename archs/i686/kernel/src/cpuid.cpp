@@ -1,16 +1,18 @@
 #include <cpuid.hpp>
-#include <klibc/string.h>
+#include <klibc/cstring>
 
 namespace CPUID {
-    extern "C" CPUID::CPUID_Data __kernel_call_cpuid__(std::uint32_t eax, std::uint32_t ecx) noexcept;
+    extern "C" CPUID::CPUID_Data __kernel_call_cpuid__(
+        std::uint32_t eax,
+        std::uint32_t ecx
+    ) noexcept;
 
     void GetVendor(char vendor[13]) noexcept
     {
-        vendor[12] = 0;
         CPUID_Data data = __kernel_call_cpuid__(0, 0);
-        memcpy(vendor, &data.ebx, 4);
-        memcpy(vendor + 4, &data.edx, 4);
-        memcpy(vendor + 8, &data.ecx, 4);
+        klibc::memcpy(vendor, &data.ebx, 4);
+        klibc::memcpy(vendor + 4, &data.edx, 4);
+        klibc::memcpy(vendor + 8, &data.ecx, 4);
     }
     
     bool LAPIC_Supported() noexcept

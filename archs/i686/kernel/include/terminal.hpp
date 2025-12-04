@@ -111,7 +111,12 @@ namespace Terminal {
             VGAColor foreground = VGAColor::VGA_COLOR_LIGHT_GRAY,
             VGAColor background = VGAColor::VGA_COLOR_BLACK
         ) noexcept;
+
+        static Terminal& GetInstance() noexcept {
+            static Terminal term;
+            return term;
+        }
     };
     
-    inline Terminal g_Terminal;
+    inline Terminal g_Terminal{};
 }
