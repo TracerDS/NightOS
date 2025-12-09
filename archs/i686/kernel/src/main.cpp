@@ -31,7 +31,7 @@
 #define COLOR_GREEN     0x0000FF00
 #define COLOR_BLUE      0x000000FF
 
-extern "C" void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info);
+extern "C" void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info) noexcept;
 extern "C" bool __kernel_check_cpuid__() noexcept;
 
 extern std::uint8_t __text_start__[];
@@ -86,7 +86,17 @@ void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info) noexcept {
 
 	char* addr = (char*)Memory::request_pages(1);
 	IO::kprintf("Allocated page at: 0x%X\r\n", addr);
+
+	for(int i=0; i<4096 / 4; ++i) {
+		((std::uint32_t*)addr)[i] = 0xDEADBEEF;
+	}
 	
+	__asm__("sti\n");
+	while (true) {
+		__asm__(
+			"nop\n"
+		);
+	}
 	return;
 
 	//Log::Logger::log("Logging is working!");
@@ -176,6 +186,7 @@ void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info) noexcept {
 	// __asm__("int 0x1");
 
 	// Enable interrupts and loop
+	
 	__asm__("sti\n");
 	while (true) {
 		__asm__(

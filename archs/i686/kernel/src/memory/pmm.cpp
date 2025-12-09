@@ -2,16 +2,16 @@
 #include <memory/paging.hpp>
 #include <grub/multiboot.hpp>
 #include <klibc/cstring>
+#include <klibc/array>
 #include <io.hpp>
 
 #include <utility>
-#include <array>
 
 extern std::uint8_t __kernel_start__[];
 extern std::uint8_t __kernel_end__[];
 
 namespace Memory {
-    alignas(4096) std::array<char, 0x20000> pmm_bitmap{}; // 128 KB Bitmap
+    alignas(4096) klibc::array<char, 0x20000> pmm_bitmap{};
 
     void mark_page(std::uintptr_t addr, bool used) noexcept {
         std::uint64_t index = addr / Paging::ByteUnits::KB4;
@@ -73,6 +73,11 @@ namespace Memory {
                     );
                 }
 
+                mark_page_range(
+                    nextAvailAddr,
+                    nextAvailAddr + length,
+                    true
+                );
                 
                 nextAvailAddr = Utils::align_up(
                     nextAvailAddr + length,

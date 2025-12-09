@@ -3,20 +3,15 @@ section .text
 global __kernel_load_IDT__:function (__kernel_load_IDT__.end - __kernel_load_IDT__.start)
 __kernel_load_IDT__:
     .start:
-        push ebp
-        mov ebp, esp
-
-        ; [ebp + 8] = descriptor
-        mov edx, dword [ebp + 8]
+        ; [esp + 4] = descriptor
+        mov edx, dword [esp + 4]
         test edx, edx
         jz .failed
 
         lidt [edx]
         mov eax, 1
-        jmp .done
+        ret
     .failed:
-        mov eax, 0
-    .done:
-        pop ebp
+        xor eax, eax
         ret
     .end:

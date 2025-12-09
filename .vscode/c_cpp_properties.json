@@ -3,9 +3,9 @@
         {
             "name": "OSDev",
             "includePath": [
+                "/opt/cross/**",
                 "${workspaceFolder}/*",
                 "${workspaceFolder}/**/**",
-                "/opt/cross/**",
                 "${workspaceFolder}/archs/**/kernel/include"
             ],
             "defines": [
@@ -13,11 +13,11 @@
                 "_DEBUG"
             ],
             "compilerPath": "/opt/cross/bin/i686-elf-g++",
-            "intelliSenseMode": "windows-gcc-x86",
+            "intelliSenseMode": "linux-gcc-x86",
             "compilerArgs": [
                 "-fno-exceptions",
                 "-fno-rtti",
-                "-std=c++2b",
+                "-std=c++2c",
                 "-ffreestanding",
                 "-nostdlib",
                 "-nostartfiles",

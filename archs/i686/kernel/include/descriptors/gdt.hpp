@@ -4,6 +4,51 @@
 
 #include <cstdint>
 
+namespace TSS {
+    enum AccessType : std::uint8_t {
+        AT_16BIT_TSS_AVAILABLE = 0b0001,
+        AT_LDT                 = 0b0010,
+        AT_16BIT_TSS_BUSY      = 0b0011,
+        AT_32BIT_TSS_AVAILABLE = 0b1001,
+        AT_32BIT_TSS_BUSY      = 0b1011,
+#ifdef __NOS_64BIT__
+        AT_64BIT_TSS_AVAILABLE = 0b1001,
+        AT_64BIT_TSS_BUSY      = 0b1011,
+#endif
+    };
+    
+    struct TSS_Entry {
+        std::uint32_t prev_tss;   // The previous TSS - if we used hardware task switching this would form a linked list.
+        std::uint32_t esp0;       // The stack pointer to load when we change to kernel mode.
+        std::uint32_t ss0;        // The stack segment to load when we change to kernel mode.
+        std::uint32_t esp1;
+        std::uint32_t ss1;
+        std::uint32_t esp2;
+        std::uint32_t ss2;
+        std::uint32_t cr3;
+        std::uint32_t eip;
+        std::uint32_t eflags;
+        std::uint32_t eax;
+        std::uint32_t ecx;
+        std::uint32_t edx;
+        std::uint32_t ebx;
+        std::uint32_t esp;
+        std::uint32_t ebp;
+        std::uint32_t esi;
+        std::uint32_t edi;
+        std::uint32_t es;
+        std::uint32_t cs;
+        std::uint32_t ss;
+        std::uint32_t ds;
+        std::uint32_t fs;
+        std::uint32_t gs;
+        std::uint32_t ldtr;
+        std::uint16_t reserved;
+        std::uint16_t iomap;
+        std::uint32_t ssp;
+    } __attribute__((packed));
+}
+
 namespace GDT {    
     enum AccessType : std::uint8_t {
         AT_VALID_SEGMENT    = 1 << 7,
@@ -58,10 +103,10 @@ namespace GDT {
     } __attribute__((packed));
 
     struct GDT_Descriptor {
-        std::uint16_t limit;         // sizeof(gdt) - 1
+        std::uint16_t limit;    // sizeof(gdt) - 1
         const GDT_Entry* entry; // address of GDT
     } __attribute__((packed));
-    
+
     bool GDT_Initialize() noexcept;
     
     extern std::uint8_t g_CodeSegmentOffset;

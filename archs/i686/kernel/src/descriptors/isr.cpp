@@ -11,6 +11,8 @@
 namespace ISR {
     constexpr std::uint16_t ISR_COUNT = 256;
 
+    extern "C" std::uint32_t __kernel_get_cr2__() noexcept;
+
     namespace Handlers {
         extern "C" void ISR0();
         extern "C" void ISR1();
@@ -272,28 +274,28 @@ namespace ISR {
 
     ISRHandler g_ISRHandlers[ISR_COUNT] {};
     constexpr const char* g_ISRExceptions[] = {
-        "Divide by zero error",
-        "Debug exception",
-        "Non-maskable Interrupt",
-        "Breakpoint",
-        "Overflow",
-        "Bound Range Exceeded",
-        "Invalid Opcode",
-        "Device Not Available",
-        "Double Fault",
-        "Coprocessor Segment Overrun",
-        "Invalid TSS",
-        "Segment Not Present",
-        "Stack-Segment Fault",
-        "General Protection Fault",
-        "Page Fault",
-        "",
-        "x87 Floating-Point Exception",
-        "Alignment Check",
-        "Machine Check",
-        "SIMD Floating-Point Exception",
-        "Virtualization Exception",
-        "Control Protection Exception ",
+        "Divide by zero error",          // 0
+        "Debug exception",               // 1
+        "Non-maskable Interrupt",        // 2
+        "Breakpoint",                    // 3
+        "Overflow",                      // 4
+        "Bound Range Exceeded",          // 5
+        "Invalid Opcode",                // 6
+        "Device Not Available",          // 7
+        "Double Fault",                  // 8
+        "Coprocessor Segment Overrun",   // 9
+        "Invalid TSS",                   // 10
+        "Segment Not Present",           // 11
+        "Stack-Segment Fault",           // 12
+        "General Protection Fault",      // 13
+        "Page Fault",                    // 14
+        "",                              // 15
+        "x87 Floating-Point Exception",  // 16
+        "Alignment Check",               // 17
+        "Machine Check",                 // 18
+        "SIMD Floating-Point Exception", // 19
+        "Virtualization Exception",      // 20
+        "Control Protection Exception ", // 21
     };
 
     void ISR_RegisterHandler(std::uint8_t interrupt, ISRHandler handler) noexcept {
@@ -358,12 +360,34 @@ namespace ISR {
         if (g_ISRHandlers[regs->interrupt]) {
             g_ISRHandlers[regs->interrupt](regs);
         } else {
-            ISR_DefaultHandler(regs);
-        }
+            // Page fault?
+            if (regs->interrupt == 0x0E) {
+                std::uint32_t faultAddr = __kernel_get_cr2__();
 
-        if (regs->interrupt == 0x0E) {
-            __asm__ volatile("hlt");
-            return;
+                bool present = !(regs->error & 0x1); // 1 = błąd ochrony, 0 = strona nieobecna
+                bool rw = regs->error & 0x2;         // 1 = zapis, 0 = odczyt
+                bool us = regs->error & 0x4;         // 1 = user mode, 0 = kernel mode
+                bool reserved = regs->error & 0x8;   // 1 = nadpisano zarezerwowane bity
+                bool id = regs->error & 0x10;        // 1 = błąd podczas pobierania instrukcji
+
+                IO::kprintf_color(
+                    "\r\n[CRITICAL] PAGE FAULT at 0x%08X\r\n",
+                    Terminal::Terminal::VGAColor::VGA_COLOR_LIGHT_RED,
+                    Terminal::Terminal::VGAColor::VGA_COLOR_BLACK,
+                    faultAddr
+                );
+                
+                IO::kprintf_color("  Reason: %s while %s in %s\r\n",
+                    Terminal::Terminal::VGAColor::VGA_COLOR_LIGHT_RED,
+                    Terminal::Terminal::VGAColor::VGA_COLOR_BLACK,
+                    present ? "Protection Violation" : "Page Not Present",
+                    rw ? "Writing" : "reading",
+                    us ? "User mode" : "Kernel mode"
+                );
+                __asm__ volatile("hlt");
+                return;
+            }
+            ISR_DefaultHandler(regs);
         }
 
         if (regs->interrupt >= 0x20 && regs->interrupt <= 0x2F) {

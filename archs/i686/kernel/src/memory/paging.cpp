@@ -8,6 +8,7 @@ namespace Paging {
     extern "C" void __kernel_load_page_directory__(const std::uint32_t* const addr) noexcept;
     extern "C" void __kernel_enable_paging__() noexcept;
     extern "C" void __kernel_disable_paging__() noexcept;
+    extern "C" void __kernel_paging_enable_pse__() noexcept;
     extern "C" void __kernel_flush_tlb_entry__(const void* const addr) noexcept;
     extern "C" void __kernel_flush_tlb_all__() noexcept;
 
@@ -21,6 +22,7 @@ namespace Paging {
         constexpr auto DEFAULT_FLAGS = PageFlags::PAGE_PRESENT |
             PageFlags::PAGE_READ_WRITE | PageFlags::PAGE_SIZE_ENABLE;
 
+        __kernel_paging_enable_pse__();
         
         auto kernel_boot_int = reinterpret_cast<std::uintptr_t>(__kernel_post_boot_start__);
         auto kernel_start_int = reinterpret_cast<std::uintptr_t>(__kernel_start__);
