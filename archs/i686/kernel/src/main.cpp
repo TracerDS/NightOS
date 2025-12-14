@@ -84,6 +84,17 @@ void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info) noexcept {
 	
 	Memory::Init(mb_info);
 
+	ISR::ISR_RegisterHandler(0x20, [](ISR::ISR_RegistersState* regs) {
+		if (false) {
+			static int ticks = 0;
+			++ticks;
+			if (ticks > 1000) {
+				ticks = 0;
+				IO::kprintf("Tick!\r\n");
+			}
+		}
+	});
+	
 	char* addr = (char*)Memory::request_pages(1);
 	IO::kprintf("Allocated page at: 0x%X\r\n", addr);
 
@@ -114,16 +125,6 @@ void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info) noexcept {
 	IO::kprintf("vendor addr: 0x%X\r\n", &vendor);
 	IO::kprintf("LAPIC built in: %s\r\n", CPUID::LAPIC_Supported() ? "true" : "false");
 
-	ISR::ISR_RegisterHandler(0x20, [](ISR::ISR_RegistersState* regs) {
-		if (false) {
-			static int ticks = 0;
-			++ticks;
-			if (ticks > 1000) {
-				ticks = 0;
-				IO::kprintf("Tick!\r\n");
-			}
-		}
-	});
 
 	IO::kprintf("Data: %X\r\n", *(std::uint8_t*)(0x70400 + 0xC0000000) );
 

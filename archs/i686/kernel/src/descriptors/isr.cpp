@@ -364,11 +364,11 @@ namespace ISR {
             if (regs->interrupt == 0x0E) {
                 std::uint32_t faultAddr = __kernel_get_cr2__();
 
-                bool present = !(regs->error & 0x1); // 1 = błąd ochrony, 0 = strona nieobecna
-                bool rw = regs->error & 0x2;         // 1 = zapis, 0 = odczyt
+                bool present = !(regs->error & 0x1); // 1 = access violation, 0 = page not present
+                bool rw = regs->error & 0x2;         // 1 = write, 0 = read
                 bool us = regs->error & 0x4;         // 1 = user mode, 0 = kernel mode
-                bool reserved = regs->error & 0x8;   // 1 = nadpisano zarezerwowane bity
-                bool id = regs->error & 0x10;        // 1 = błąd podczas pobierania instrukcji
+                bool reserved = regs->error & 0x8;   // 1 = reserved bits overwritten
+                bool id = regs->error & 0x10;        // 1 = error during instruction fetch
 
                 IO::kprintf_color(
                     "\r\n[CRITICAL] PAGE FAULT at 0x%08X\r\n",
@@ -391,10 +391,13 @@ namespace ISR {
         }
 
         if (regs->interrupt >= 0x20 && regs->interrupt <= 0x2F) {
+            namespace PIC_Ports = IRQ::PIC::PIC_Ports;
+            namespace PIC_Flags = IRQ::PIC::PIC_Flags;
+
             if (regs->interrupt >= 0x28) {
-                Serial::WriteByte(IRQ::PIC::PIC_Ports::PIC2, IRQ::PIC::PIC_Flags::PIC_EOI); // Send EOI to slave PIC
+                Serial::WriteByte(PIC_Ports::PIC2, PIC_Flags::PIC_EOI); // Send EOI to slave PIC
             }
-            Serial::WriteByte(IRQ::PIC::PIC_Ports::PIC1, IRQ::PIC::PIC_Flags::PIC_EOI); // Send EOI to master PIC
+            Serial::WriteByte(PIC_Ports::PIC1, PIC_Flags::PIC_EOI); // Send EOI to master PIC
             return;
         }
         __asm__ volatile("hlt");

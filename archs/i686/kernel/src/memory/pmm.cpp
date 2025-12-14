@@ -48,30 +48,12 @@ namespace Memory {
             std::uint64_t length = mmap_entry->len;
             std::uint32_t type = mmap_entry->type;
 
-            auto pagesAmount = Utils::align_up(
-                length,
-                Paging::ByteUnits::KB4
-            ) / Paging::ByteUnits::KB4;
-
-            if (base < nextAvailAddr) {
-                if (base + length < nextAvailAddr) {
-                    // Already mapped, continue
-                    continue;
-                }
-            }
-
             if (type == MULTIBOOT_MEMORY_RESERVED) {
+#ifdef __NOS_DEBUG__
                 IO::kprintf("Reserved: 0x%08llX - 0x%08llX -> 0x%08llX - 0x%08llX\r\n",
                     base, base + length - 1, nextAvailAddr, nextAvailAddr + length - 1
                 );
-
-                for (auto i = 0; i < pagesAmount; ++i) {
-                    Paging::map_page(
-                        base + i * Paging::ByteUnits::KB4,
-                        nextAvailAddr + i * Paging::ByteUnits::KB4,
-                        Paging::PageFlags::PAGE_PRESENT | Paging::PageFlags::PAGE_READ_WRITE
-                    );
-                }
+#endif
 
                 mark_page_range(
                     nextAvailAddr,
@@ -86,7 +68,7 @@ namespace Memory {
             }
 
             mmap_entry = reinterpret_cast<multiboot_memory_map_t*>(
-                reinterpret_cast<uint8_t*>(mmap_entry)
+                reinterpret_cast<std::uint8_t*>(mmap_entry)
                 + mmap_entry->size + sizeof(mmap_entry->size)
             );
         }
@@ -100,22 +82,17 @@ namespace Memory {
             std::uint32_t type = mmap_entry->type;
 
             if (type == MULTIBOOT_MEMORY_AVAILABLE) {
+#ifdef __NOS_DEBUG__
                 IO::kprintf("Free: 0x%08llX - 0x%08llX -> 0x%08llX - 0x%08llX\r\n",
                     base, base + length, nextAvailAddr, nextAvailAddr + length
                 );
+#endif
 
-                Paging::map_page(
-                    base,
-                    nextAvailAddr,
-                    Paging::PageFlags::PAGE_PRESENT | Paging::PageFlags::PAGE_READ_WRITE |
-                        Paging::PageFlags::PAGE_USER_SUPERVISOR
-                );
-                
                 nextAvailAddr += length;
             }
 
             mmap_entry = reinterpret_cast<multiboot_memory_map_t*>(
-                reinterpret_cast<uint8_t*>(mmap_entry)
+                reinterpret_cast<std::uint8_t*>(mmap_entry)
                 + mmap_entry->size + sizeof(mmap_entry->size)
             );
         }
@@ -132,11 +109,13 @@ namespace Memory {
     void Init(struct multiboot_info* mb_info) noexcept {
         auto [memstart, memend] = remap_memory_sections(mb_info);
 
+#ifdef __NOS_DEBUG__
         IO::kprintf(
             "Free memory: 0x%X -> 0x%X\r\n",
             memstart,
             memend
         );
+#endif
 
         mark_page_range(
             reinterpret_cast<std::uintptr_t>(__kernel_start__),

@@ -4,6 +4,10 @@
 #include <utility>
 #include <type_traits>
 
+namespace Memory {
+    extern void* request_pages(std::size_t pages) noexcept;
+}
+
 namespace Paging {
     extern "C" void __kernel_load_page_directory__(const std::uint32_t* const addr) noexcept;
     extern "C" void __kernel_enable_paging__() noexcept;
@@ -59,17 +63,45 @@ namespace Paging {
 
     void map_page(std::uint32_t physAddr, std::uint32_t virtualAddr, std::uint32_t flags) noexcept {
         std::uint32_t pageDirIndex = virtualAddr >> 22;
-        std::uint32_t pageTableIndex;
+        std::uint32_t pageTableIndex = (virtualAddr >> 12) & 0x3FF;
 
-        // Check if 4MB page
-        if (flags & PageFlags::PAGE_SIZE_ENABLE) {
-            // 4 MB page
-            pageTableIndex = (physAddr & 0xFFC00000);
+        std::uint32_t pageDirEntry = gs_pageDirectory[pageDirIndex];
+
+        std::uint32_t* pageTable = nullptr;
+
+        if (pageDirEntry & PageFlags::PAGE_PRESENT) {
+            // Page table already exists
+
+            // Is 4MB page?
+            if (pageDirEntry & PageFlags::PAGE_SIZE_ENABLE) {
+                return;
+            }
+
+            auto tablePhys = pageDirEntry & 0xFFFFF000;
+            pageTable = reinterpret_cast<std::uint32_t*>(tablePhys);
         } else {
-            // 4 KB page
-            pageTableIndex = (virtualAddr >> 12) & 0x3FF;
+            // Create new page table
+            void* newTablePhys = Memory::request_pages(1);
+            if (!newTablePhys) {
+                // Out of memory. PANIC
+                return;
+            }
+
+            auto* tablePtr = reinterpret_cast<std::uint32_t*>(newTablePhys);
+            for (auto i = 0; i < 1024; ++i)
+                tablePtr[i] = 0;
+            
+            gs_pageDirectory[pageDirIndex] =
+                reinterpret_cast<std::uint32_t>(newTablePhys) | 
+                    PageFlags::PAGE_PRESENT | PageFlags::PAGE_READ_WRITE;
+
+            pageTable = tablePtr;
         }
-        gs_pageDirectory[pageDirIndex] = pageTableIndex | flags;
+
+        pageTable[pageTableIndex] = (physAddr & 0xFFFFF000) | flags;
+
+        // Invalidate TLB
+        __kernel_flush_tlb_entry__(reinterpret_cast<const void*>(virtualAddr));
     }
 
     void unmap_page(std::uint32_t virtualAddr) noexcept {
