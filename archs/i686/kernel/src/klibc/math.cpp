@@ -242,8 +242,8 @@ T fmod_core(T x, T y) {
         lead_zeros_my = __builtin_clz(my);
     }
 
-    auto tail_zeros_my = __builtin_ctz(my);
-    auto sides_zeroes = lead_zeros_my + tail_zeros_my;
+    auto tail_zeros_my = static_cast<unsigned long>(__builtin_ctz(my));
+    auto sides_zeroes = static_cast<unsigned long>(lead_zeros_my + tail_zeros_my);
 
     auto right_shift = exp_diff < tail_zeros_my ? exp_diff : tail_zeros_my;
     my >>= right_shift;
@@ -325,8 +325,8 @@ long double powl(long double base, long double exponent) {
 */
 
 float expf(float num) {
-    constexpr auto UPPER_LIMIT = 0x1.62e42ep6f;  // ln(FLT_MAX) in float representation
-    constexpr auto LOWER_LIMIT = -0x1.9fe368p6f; // -ln(150.0f) in float representation
+    [[maybe_unused]] constexpr auto UPPER_LIMIT = 0x1.62e42ep6f;  // ln(FLT_MAX) in float representation
+    [[maybe_unused]] constexpr auto LOWER_LIMIT = -0x1.9fe368p6f; // -ln(150.0f) in float representation
     return num;
 }
 

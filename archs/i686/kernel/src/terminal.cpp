@@ -42,6 +42,11 @@ namespace Terminal {
             return;
         }
 
+        // Validate coordinates to prevent buffer overflow
+        if (x >= m_width || y >= m_height) {
+            return;
+        }
+
         const std::uint16_t index = y * m_width + x;
 
         auto fg = std::to_underlying<Terminal::VGAColor>(foreground);
@@ -115,7 +120,8 @@ namespace Terminal {
         }
 
         std::uint64_t divisor = 1;
-        while (value / divisor >= base) {
+        // Check for overflow before multiplying
+        while (value / divisor >= base && divisor <= UINT64_MAX / base) {
             divisor *= base;
         }
 

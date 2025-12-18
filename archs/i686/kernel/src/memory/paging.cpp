@@ -27,6 +27,11 @@ namespace Paging {
             PageFlags::PAGE_READ_WRITE | PageFlags::PAGE_SIZE_ENABLE;
 
         __kernel_paging_enable_pse__();
+
+        // Reset paging structures (BSS is typically zeroed, but keep this explicit)
+        for (std::size_t i = 0; i < 1024; ++i) {
+            gs_pageDirectory[i] = 0;
+        }
         
         auto kernel_boot_int = reinterpret_cast<std::uintptr_t>(__kernel_post_boot_start__);
         auto kernel_start_int = reinterpret_cast<std::uintptr_t>(__kernel_start__);
@@ -35,59 +40,76 @@ namespace Paging {
         auto kernel_offset = kernel_start_int - kernel_boot_int;
         auto kernel_start_phys = kernel_start_int - kernel_offset;
         auto kernel_end_phys = kernel_end_int - kernel_offset;
-        auto kernel_size = kernel_end_phys - kernel_start_phys;
 
-        auto kernel_pages = Utils::align_up(
-            kernel_size,
-            ByteUnits::MB4
-        ) / ByteUnits::MB4;
+        // 4MB (PSE) mappings require 4MB alignment; map the aligned region containing the kernel.
+        auto kernel_start_phys_aligned = Utils::align_down(kernel_start_phys, ByteUnits::MB4);
+        auto kernel_start_virt_aligned = Utils::align_down(kernel_start_int, ByteUnits::MB4);
+        auto kernel_end_phys_aligned = Utils::align_up(kernel_end_phys, ByteUnits::MB4);
+
+        auto kernel_pages = (kernel_end_phys_aligned - kernel_start_phys_aligned) / ByteUnits::MB4;
 
         // Memory map first 4MBs
         map_page(0x0, 0x0, DEFAULT_FLAGS);
 
         // Map the kernel pages
-        for (auto i = 0; i < kernel_pages; ++i) {
+        for (std::size_t i = 0; i < kernel_pages; ++i) {
             map_page (
-                kernel_start_phys + (i * ByteUnits::MB4),
-                kernel_offset,
+                static_cast<std::uint32_t>(kernel_start_phys_aligned + (i * ByteUnits::MB4)),
+                static_cast<std::uint32_t>(kernel_start_virt_aligned + (i * ByteUnits::MB4)),
                 DEFAULT_FLAGS
             );
         }
 
-        __kernel_load_page_directory__(
-            reinterpret_cast<std::uint32_t*>(virtualToPhysical(
-                reinterpret_cast<std::uint32_t>(gs_pageDirectory)
-            ))
-        );
+        // CR3 must receive the PHYSICAL address of the page directory.
+        // We can compute it via the kernel offset (virtual - physical).
+        auto pageDirVirt = reinterpret_cast<std::uint32_t>(gs_pageDirectory);
+        auto pageDirPhys = static_cast<std::uint32_t>(pageDirVirt - kernel_offset);
+
+        __kernel_load_page_directory__(reinterpret_cast<const std::uint32_t*>(pageDirPhys));
+        __kernel_enable_paging__();
+        __kernel_flush_tlb_all__();
     }
 
     void map_page(std::uint32_t physAddr, std::uint32_t virtualAddr, std::uint32_t flags) noexcept {
-        std::uint32_t pageDirIndex = virtualAddr >> 22;
-        std::uint32_t pageTableIndex = (virtualAddr >> 12) & 0x3FF;
+        std::uintptr_t pageDirIndex = virtualAddr >> 22;
+        std::uintptr_t pageTableIndex = (virtualAddr >> 12) & 0x3FF;
 
-        std::uint32_t pageDirEntry = gs_pageDirectory[pageDirIndex];
+        flags |= PageFlags::PAGE_PRESENT;
 
-        std::uint32_t* pageTable = nullptr;
+        // 4MB page mapping
+        if (flags & PageFlags::PAGE_SIZE_ENABLE) {
+            // Large pages require 4MB alignment.
+            gs_pageDirectory[pageDirIndex] = (physAddr & 0xFFC00000) | flags;
+
+            __kernel_flush_tlb_entry__(
+                reinterpret_cast<const void*>(virtualAddr)
+            );
+            return;
+        }
+
+        std::uintptr_t pageDirEntry = gs_pageDirectory[pageDirIndex];
+
+        std::uintptr_t* pageTable = nullptr;
 
         if (pageDirEntry & PageFlags::PAGE_PRESENT) {
             // Page table already exists
 
-            // Is 4MB page?
-            if (pageDirEntry & PageFlags::PAGE_SIZE_ENABLE) {
-                return;
-            }
-
-            auto tablePhys = pageDirEntry & 0xFFFFF000;
-            pageTable = reinterpret_cast<std::uint32_t*>(tablePhys);
+            pageTable = reinterpret_cast<std::uintptr_t*>(pageDirEntry & 0xFFFFF000);
         } else {
             // Create new page table
             void* newTablePhys = Memory::request_pages(1);
             if (!newTablePhys) {
                 // Out of memory. PANIC
+#ifdef __NOS_DEBUG__
+                IO::kprintf(
+                    "PANIC: Out of memory while mapping address %08X to %08X\r\n",
+                    physAddr, virtualAddr
+                );
+#endif
                 return;
             }
 
-            auto* tablePtr = reinterpret_cast<std::uint32_t*>(newTablePhys);
+            auto* tablePtr = reinterpret_cast<std::uintptr_t*>(newTablePhys);
             for (auto i = 0; i < 1024; ++i)
                 tablePtr[i] = 0;
             
@@ -105,7 +127,8 @@ namespace Paging {
     }
 
     void unmap_page(std::uint32_t virtualAddr) noexcept {
-        std::uint32_t pageDirIndex = virtualAddr >> 22;
+        std::uintptr_t pageDirIndex = virtualAddr >> 22;
+
         auto pageDirEntry = gs_pageDirectory[pageDirIndex];
 
         if (!(pageDirEntry & PageFlags::PAGE_PRESENT)) {
@@ -122,68 +145,14 @@ namespace Paging {
             auto pageTable = reinterpret_cast<std::uint32_t*>(pageDirEntry & 0xFFFFF000);
             std::uint32_t pageTableIndex = (virtualAddr >> 12) & 0x3FF;
             
+            // Validate page table index
+            if (pageTableIndex >= 1024) {
+                return;
+            }
+            
             pageTable[pageTableIndex] = 0;
         }
 
         __kernel_flush_tlb_entry__(reinterpret_cast<void*>(virtualAddr));
-    }
-    
-    std::uint32_t virtualToPhysical(std::uint32_t virtualAddr) noexcept {
-        auto virtualAddrInt = reinterpret_cast<std::uint32_t>(virtualAddr);
-
-        std::uint32_t pageDirIndex = virtualAddrInt >> 22; // top 10 bits
-        std::uint32_t pageTableIndex = (virtualAddrInt >> 12) & 0x3FF; // next 10 bits
-        std::uint32_t offset = virtualAddrInt & 0xFFF; // last 12 bits
-
-        std::uint32_t pde = gs_pageDirectory[pageDirIndex];
-
-        if (!(pde & PageFlags::PAGE_PRESENT)) {
-            // Page not present
-            return static_cast<std::uint32_t>(-1);
-        }
-
-        if (pde & PageFlags::PAGE_SIZE_ENABLE) { // PS bit = 1 -> 4MB page
-            auto phys_base = pde & 0xFFC00000; // top 10 bits for 4MB page
-            return phys_base + (virtualAddrInt & 0x3FFFFF);    // offset within 4MB
-        } else {
-            // 4KB page, follow the page table
-            auto pageTable = reinterpret_cast<std::uint32_t*>(pde & 0xFFFFF000);
-            std::uint32_t pte = pageTable[pageTableIndex];
-
-            if (!(pte & PageFlags::PAGE_PRESENT)) {
-                return static_cast<std::uint32_t>(-1); // Page not present
-            }
-
-            auto phys_base = pte & 0xFFFFF000;
-            return phys_base + offset;
-        }
-    }
-
-    std::uint32_t physicalToVirtual(std::uint32_t physicalAddr) noexcept {
-        for (std::uint32_t pd_index = 0; pd_index < 1024; ++pd_index) {
-            auto pde = gs_pageDirectory[pd_index];
-            if (!(pde & PageFlags::PAGE_PRESENT))
-                continue; // PDE not present
-
-            if (pde & PageFlags::PAGE_SIZE_ENABLE) { // 4 MB page
-                auto base = pde & 0xFFC00000;
-                if (physicalAddr >= base && physicalAddr < base + 0x400000) {
-                    return (pd_index << 22) + (physicalAddr - base);
-                }
-            } else { // 4 KB pages
-                auto pageTable = reinterpret_cast<std::uint32_t*>(pde & 0xFFFFF000);
-                for (std::uint32_t pt_index = 0; pt_index < 1024; ++pt_index) {
-                    auto pte = pageTable[pt_index];
-                    if (!(pte & PageFlags::PAGE_PRESENT))
-                        continue; // PTE not present
-                        
-                    auto base = pte & 0xFFFFF000;
-                    if (physicalAddr >= base && physicalAddr < base + 0x1000) {
-                        return (pd_index << 22) | (pt_index << 12) | (physicalAddr - base);
-                    }
-                }
-            }
-        }
-        return static_cast<std::uint32_t>(-1); // not mapped
     }
 }

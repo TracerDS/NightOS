@@ -367,11 +367,11 @@ namespace ISR {
                 bool present = !(regs->error & 0x1); // 1 = access violation, 0 = page not present
                 bool rw = regs->error & 0x2;         // 1 = write, 0 = read
                 bool us = regs->error & 0x4;         // 1 = user mode, 0 = kernel mode
-                bool reserved = regs->error & 0x8;   // 1 = reserved bits overwritten
-                bool id = regs->error & 0x10;        // 1 = error during instruction fetch
+                [[maybe_unused]] bool reserved = regs->error & 0x8;   // 1 = reserved bits overwritten
+                [[maybe_unused]] bool id = regs->error & 0x10;        // 1 = error during instruction fetch
 
                 IO::kprintf_color(
-                    "\r\n[CRITICAL] PAGE FAULT at 0x%08X\r\n",
+                    "\r\n[CRITICAL] PAGE FAULT at 0x%08lX\r\n",
                     Terminal::Terminal::VGAColor::VGA_COLOR_LIGHT_RED,
                     Terminal::Terminal::VGAColor::VGA_COLOR_BLACK,
                     faultAddr

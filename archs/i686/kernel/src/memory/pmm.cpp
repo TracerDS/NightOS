@@ -11,12 +11,19 @@ extern std::uint8_t __kernel_start__[];
 extern std::uint8_t __kernel_end__[];
 
 namespace Memory {
+    // Bitmap: 1 bit per 4KB page. Each bit: 1 = used, 0 = free
+    // 0x20000 bytes = 4GB of memory
     alignas(4096) klibc::array<char, 0x20000> pmm_bitmap{};
 
     void mark_page(std::uintptr_t addr, bool used) noexcept {
         std::uint64_t index = addr / Paging::ByteUnits::KB4;
         std::uint64_t byte_index = index / 8;
         std::uint8_t bit_index = index % 8;
+
+        // Bounds check to prevent buffer overflow
+        if (byte_index >= pmm_bitmap.size()) {
+            return;
+        }
 
         if (used) {
             Utils::Bits::SetBit(pmm_bitmap[byte_index], bit_index);
@@ -44,7 +51,7 @@ namespace Memory {
         std::uint64_t nextAvailAddr = 0;
 
         while (reinterpret_cast<std::uintptr_t>(mmap_entry) < buffer_end) {
-            std::uint64_t base = mmap_entry->addr;
+            [[maybe_unused]] std::uint64_t base = mmap_entry->addr;
             std::uint64_t length = mmap_entry->len;
             std::uint32_t type = mmap_entry->type;
 
@@ -77,7 +84,7 @@ namespace Memory {
 
         mmap_entry = reinterpret_cast<multiboot_memory_map_t*>(mb_info->mmap_addr);
         while (reinterpret_cast<std::uintptr_t>(mmap_entry) < buffer_end) {
-            std::uint64_t base = mmap_entry->addr;
+            [[maybe_unused]] std::uint64_t base = mmap_entry->addr;
             std::uint64_t length = mmap_entry->len;
             std::uint32_t type = mmap_entry->type;
 
@@ -107,7 +114,7 @@ namespace Memory {
     }
     
     void Init(struct multiboot_info* mb_info) noexcept {
-        auto [memstart, memend] = remap_memory_sections(mb_info);
+        [[maybe_unused]] auto [memstart, memend] = remap_memory_sections(mb_info);
 
 #ifdef __NOS_DEBUG__
         IO::kprintf(
@@ -125,9 +132,20 @@ namespace Memory {
     }
 
     void* request_pages(std::size_t pages) noexcept {
-        for (std::size_t i = 0; i < (pmm_bitmap.size() * 8); ++i) {
-            bool block_found = false;
+        // Validate input
+        if (pages == 0 || pages > pmm_bitmap.size() * 8) {
+            return nullptr;
+        }
 
+        for (std::size_t i = 0; i < (pmm_bitmap.size() * 8); ++i) {
+            // Check if we have enough remaining bits to satisfy the request
+            if (i + pages > pmm_bitmap.size() * 8) {
+                break;
+            }
+
+            bool block_found = true;
+
+            // Check if all requested pages are free
             for (std::size_t j = 0; j < pages; ++j) {
                 std::uint64_t index = i + j;
                 std::uint64_t byte_index = index / 8;
@@ -138,12 +156,11 @@ namespace Memory {
                     break;
                 }
 
+                // If ANY bit is set (page is used), this block won't work
                 if (Utils::Bits::IsBitSet(pmm_bitmap[byte_index], bit_index)) {
                     block_found = false;
                     break;
                 }
-
-                block_found = true;
             }
 
             if (block_found) {
@@ -162,7 +179,16 @@ namespace Memory {
     }
 
     void free_pages(void* addr, std::size_t pages) noexcept {
+        if (!addr || pages == 0) {
+            return;
+        }
+
         std::uintptr_t address = reinterpret_cast<std::uintptr_t>(addr);
+
+        // Ensure the address is page-aligned
+        if (address % Paging::ByteUnits::KB4 != 0) {
+            return;
+        }
 
         for (std::size_t i = 0; i < pages; ++i) {
             mark_page(address + i * Paging::ByteUnits::KB4, false);

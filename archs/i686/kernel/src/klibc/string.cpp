@@ -4,6 +4,9 @@ extern "C" {
 #include <klibc/string.h>
 
 size_t strlen(const char* str) {
+    if (!str) {
+        return 0;
+    }
     size_t length = 0;
     while (str[length] != '\0') {
         length++;
@@ -38,6 +41,9 @@ int memcmp(const void* lhs, const void* rhs, size_t count) {
 }
 
 void* memset(void* dest, int ch, size_t count) {
+    if (!dest || count == 0) {
+        return dest;
+    }
     auto p = static_cast<std::uint8_t*>(dest);
     for (std::size_t i = 0; i < count; ++i) {
         p[i] = static_cast<std::uint8_t>(ch);
@@ -50,6 +56,11 @@ void* memset_explicit(void* dest, int ch, size_t count) {
 }
 
 void* memcpy(void* dest, const void* src, size_t count) {
+    // Check for null pointers
+    if (!dest || !src || count == 0) {
+        return dest;
+    }
+
     auto p1 = static_cast<std::uint8_t*>(dest);
     auto p2 = static_cast<const std::uint8_t*>(src);
 

@@ -1,6 +1,9 @@
 #include <tests.hpp>
 #include <io.hpp>
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat"
+
 namespace Tests {
     namespace IO {
         void Test() noexcept {
@@ -104,3 +107,5 @@ namespace Tests {
         IO::Test();
     }
 }
+
+#pragma GCC diagnostic pop

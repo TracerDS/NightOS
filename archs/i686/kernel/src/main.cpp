@@ -84,7 +84,7 @@ void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info) noexcept {
 	
 	Memory::Init(mb_info);
 
-	ISR::ISR_RegisterHandler(0x20, [](ISR::ISR_RegistersState* regs) {
+	ISR::ISR_RegisterHandler(0x20, []([[maybe_unused]] ISR::ISR_RegistersState* regs) {
 		if (false) {
 			static int ticks = 0;
 			++ticks;
@@ -96,7 +96,7 @@ void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info) noexcept {
 	});
 	
 	char* addr = (char*)Memory::request_pages(1);
-	IO::kprintf("Allocated page at: 0x%X\r\n", addr);
+	IO::kprintf("Allocated page at: 0x%X\r\n", (unsigned int)addr);
 
 	for(int i=0; i<4096 / 4; ++i) {
 		((std::uint32_t*)addr)[i] = 0xDEADBEEF;
@@ -116,20 +116,20 @@ void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info) noexcept {
 		"Hello\nKernel\nWorld\r\n",
 		Terminal::Terminal::VGAColor::VGA_COLOR_LIGHT_MAGENTA
 	);
-	IO::kprintf("__cplusplus: %d\r\n", __cplusplus);
+	IO::kprintf("__cplusplus: %ld\r\n", __cplusplus);
 	IO::kprintf("CPUID supported: %s\r\n", __kernel_check_cpuid__() ? "true" : "false");
 
 	char vendor[13] {0};
 	CPUID::GetVendor(vendor);
 	IO::kprintf("CPUID vendor: %s\r\n", vendor);
-	IO::kprintf("vendor addr: 0x%X\r\n", &vendor);
+	IO::kprintf("vendor addr: 0x%X\r\n", (unsigned int)&vendor);
 	IO::kprintf("LAPIC built in: %s\r\n", CPUID::LAPIC_Supported() ? "true" : "false");
 
 
 	IO::kprintf("Data: %X\r\n", *(std::uint8_t*)(0x70400 + 0xC0000000) );
 
 	if (true) {
-		ISR::ISR_RegisterHandler(0x21, [](ISR::ISR_RegistersState* regs) {
+		ISR::ISR_RegisterHandler(0x21, []([[maybe_unused]] ISR::ISR_RegistersState* regs) {
 			static bool pressed = false;
 			static std::uint8_t prevCode = 0;
 			
@@ -178,9 +178,9 @@ void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info) noexcept {
 		});
 	}
 
-	IO::kprintf("__kernel_start__: 0x%X\r\n", __kernel_start__);
-	IO::kprintf("__kernel_end__:   0x%X\r\n", __kernel_end__);
-	IO::kprintf("Kernel size:      0x%X\r\n", __kernel_end__ - __kernel_start__);
+	IO::kprintf("__kernel_start__: 0x%X\r\n", (unsigned int)__kernel_start__);
+	IO::kprintf("__kernel_end__:   0x%X\r\n", (unsigned int)__kernel_end__);
+	IO::kprintf("Kernel size:      0x%X\r\n", (unsigned int)(__kernel_end__ - __kernel_start__));
 	
 	IO::kprintf("\r\n");
 

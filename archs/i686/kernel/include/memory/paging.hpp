@@ -57,7 +57,4 @@ namespace Paging {
 
     void map_page(std::uint32_t physAddr, std::uint32_t virtualAddr, std::uint32_t flags) noexcept;
     void unmap_page(std::uint32_t virtualAddr) noexcept;
-
-    std::uint32_t virtualToPhysical(std::uint32_t virtualAddr) noexcept;
-    std::uint32_t physicalToVirtual(std::uint32_t physicalAddr) noexcept;
 }

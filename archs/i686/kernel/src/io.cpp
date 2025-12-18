@@ -2,6 +2,7 @@
 #include <cstdarg>
 #include <bit>
 #include <limits>
+#include <climits>
 #include <cstddef>
 #include <concepts>
 
@@ -59,7 +60,7 @@ namespace IO {
             bool spaceSign = false;
             bool leftAlign = false;
             bool zeroPad = false;
-            bool prefix = false;
+            [[maybe_unused]] bool prefix = false;
 
             // Flags
             while (*format == '-' || *format == '+' || *format == ' ' || *format == '#' || *format == '0') {
@@ -75,10 +76,20 @@ namespace IO {
             // Width
             int width = 0;
             if (*format >= '0' && *format <= '9') {
-                while (*format >= '0' && *format <= '9')
-                    width = width * 10 + (*format++ - '0');
+                while (*format >= '0' && *format <= '9') {
+                    int digit = *format++ - '0';
+                    // Check for integer overflow
+                    if (width > (INT_MAX - digit) / 10) {
+                        width = INT_MAX;
+                        break;
+                    }
+                    width = width * 10 + digit;
+                }
             } else if (*format == '*') {
                 width = va_arg(args, int);
+                // Clamp negative or excessive widths
+                if (width < 0) width = 0;
+                if (width > 1024) width = 1024;
                 ++format;
             }
 
@@ -89,10 +100,21 @@ namespace IO {
                 precision = 0;
                 if (*format == '*') {
                     precision = va_arg(args, int);
+                    // Clamp negative or excessive precision
+                    if (precision < 0) precision = -1;
+                    if (precision > 512) precision = 512;
                     ++format;
                 } else {
-                    while (*format >= '0' && *format <= '9')
-                        precision = precision * 10 + (*format++ - '0');
+                    while (*format >= '0' && *format <= '9') {
+                        int digit = *format++ - '0';
+                        // Check for integer overflow
+                        if (precision > (INT_MAX - digit) / 10) {
+                            precision = 512;
+                            break;
+                        }
+                        precision = precision * 10 + digit;
+                    }
+                    if (precision > 512) precision = 512;
                 }
             }
 
@@ -157,7 +179,9 @@ namespace IO {
                     if (!str) str = "(null)";
 
                     int len = 0;
-                    while (str[len] && (precision < 0 || len < precision)) ++len;
+                    // Add reasonable maximum length to prevent infinite loops
+                    int max_len = (precision >= 0 && precision < 1024) ? precision : 1024;
+                    while (str[len] && len < max_len) ++len;
                     if (!leftAlign && width > len) {
                         for (int i = 0; i < width - len; ++i) {
                             Terminal::g_Terminal.WriteChar(' ', foreground, background);
