@@ -10,7 +10,8 @@
             ],
             "defines": [
                 "__MULTIBOOT__",
-                "_DEBUG"
+                "_DEBUG",
+                "__KERNEL_DEBUG__"
             ],
             "compilerPath": "/opt/cross/bin/i686-elf-g++",
             "intelliSenseMode": "linux-gcc-x86",

@@ -3,11 +3,19 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace Memory::VMM {
-    void Init(std::uintptr_t startAddr, std::size_t size) noexcept;
+namespace Memory {
+    class VirtualMemoryAllocator {
+    public:
+        void init(std::uintptr_t startVirtAddr, std::size_t size) noexcept;
+
+        void* allocate(std::size_t size) noexcept;
+        void free(void* ptr) noexcept;
+    };
+
+    extern VirtualMemoryAllocator g_vmmAllocator;
 }
 
-void* operator new(size_t size) noexcept;
+void* operator new(std::size_t size) noexcept;
 void* operator new[](std::size_t size) noexcept;
 
 void operator delete(void* ptr) noexcept;

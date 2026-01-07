@@ -1,5 +1,6 @@
 #include <memory/paging.hpp>
 #include <memory/pmm.hpp>
+#include <io.hpp>
 
 #include <cstdint>
 #include <utility>
@@ -101,9 +102,9 @@ namespace Paging {
             auto newTablePhys = Memory::g_pmmAllocator.request_pages(1);
             if (!newTablePhys) {
                 // Out of memory. PANIC
-#ifdef __NOS_DEBUG__
+#ifdef __KERNEL_DEBUG__
                 IO::kprintf(
-                    "PANIC: Out of memory while mapping address %08X to %08X\r\n",
+                    "PANIC: Out of memory while mapping address %08lX to %08lX\r\n",
                     physAddr, virtualAddr
                 );
 #endif

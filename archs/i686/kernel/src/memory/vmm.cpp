@@ -2,10 +2,14 @@
 #include <memory/pmm.hpp>
 #include <memory/paging.hpp>
 
+#include <io.hpp>
+
 #include <cstddef>
 #include <cstdint>
 
-namespace Memory::VMM {
+namespace Memory {
+    VirtualMemoryAllocator g_vmmAllocator{};
+
     class LinkedListAllocator {
         struct NodeHeader {
             std::size_t size;
@@ -16,15 +20,11 @@ namespace Memory::VMM {
         std::size_t totalSize;
         NodeHeader* head;
     public:
-        static LinkedListAllocator& GetInstance() noexcept {
-            static LinkedListAllocator instance;
-            return instance;
-        }
         void Initialize(std::uintptr_t startVirtAddr, std::size_t initialSize) noexcept;
         void* Allocate(std::size_t size) noexcept;
         void Free(void* ptr) noexcept;
     };
-    LinkedListAllocator& g_allocator = LinkedListAllocator::GetInstance();
+    LinkedListAllocator g_linkedListAllocator{};
 
     void LinkedListAllocator::Initialize(std::uintptr_t startVirtAddr, std::size_t initialSize) noexcept {
         // Assume we are mapped in already
@@ -32,16 +32,23 @@ namespace Memory::VMM {
     
         for (std::size_t i = 0; i < pagesNeeded; ++i) {
             // Get the physical page
-            void* phys = Memory::PMM::g_allocator.RequestPages(1);
-            if (!phys) {
+            auto physAddr = g_pmmAllocator.request_pages(1);
+            if (!physAddr) {
                 // No memory. Panic
                 Utils::Asm::KernelPanic();
                 return;
             }
             
+#ifdef __KERNEL_DEBUG__
+            IO::kprintf("VMM: Mapping virtual 0x%lX to physical 0x%lX\r\n",
+                startVirtAddr + (i * Paging::ByteUnits::KB4),
+                reinterpret_cast<std::uintptr_t>(physAddr.data())
+            );
+#endif
+
             // Map it
-            Paging::map_page(
-                reinterpret_cast<std::uint32_t>(phys), 
+            Paging::g_paging.map_page(
+                reinterpret_cast<std::uintptr_t>(physAddr.data()), 
                 startVirtAddr + (i * Paging::ByteUnits::KB4), 
                 Paging::PageFlags::PAGE_PRESENT | Paging::PageFlags::PAGE_READ_WRITE
             );
@@ -59,6 +66,13 @@ namespace Memory::VMM {
     
     void* LinkedListAllocator::Allocate(std::size_t size) noexcept {
         std::size_t alignedSize = Utils::align_up(size, alignof(std::max_align_t));
+
+#ifdef __KERNEL_DEBUG__
+        IO::kprintf("VMM: Allocating %lu bytes (aligned to %lu bytes)\r\n",
+            size,
+            alignedSize
+        );
+#endif
 
         NodeHeader* current = head;
         while (current) {
@@ -108,29 +122,36 @@ namespace Memory::VMM {
             }
         }
     }
-    
-    void Init(std::uintptr_t startAddr, std::size_t size) noexcept {
-        //Paging::map_page()
-        g_allocator.Initialize(startAddr, size);
+
+    void VirtualMemoryAllocator::init(std::uintptr_t startVirtAddr, std::size_t size) noexcept {
+        g_linkedListAllocator.Initialize(startVirtAddr, size);
+    }
+
+    void* VirtualMemoryAllocator::allocate(std::size_t size) noexcept {
+        return g_linkedListAllocator.Allocate(size);
+    }
+
+    void VirtualMemoryAllocator::free(void* ptr) noexcept {
+        g_linkedListAllocator.Free(ptr);
     }
 }
 
 
 void* operator new(std::size_t size) noexcept {
-    return Memory::VMM::g_allocator.Allocate(size);
+    return Memory::g_vmmAllocator.allocate(size);
 }
 void* operator new[](std::size_t size) noexcept {
-    return Memory::VMM::g_allocator.Allocate(size);
+    return Memory::g_vmmAllocator.allocate(size);
 }
 void operator delete(void* ptr) noexcept {
-    Memory::VMM::g_allocator.Free(ptr);
+    Memory::g_vmmAllocator.free(ptr);
 }
 void operator delete(void* ptr, [[maybe_unused]] std::size_t size) noexcept {
-    Memory::VMM::g_allocator.Free(ptr);
+    Memory::g_vmmAllocator.free(ptr);
 }
 void operator delete[](void* ptr) noexcept {
-    Memory::VMM::g_allocator.Free(ptr);
+    Memory::g_vmmAllocator.free(ptr);
 }
 void operator delete[](void* ptr, [[maybe_unused]] std::size_t size) noexcept {
-    Memory::VMM::g_allocator.Free(ptr);
+    Memory::g_vmmAllocator.free(ptr);
 }

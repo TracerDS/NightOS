@@ -40,12 +40,12 @@ namespace Memory {
         std::uintptr_t end_addr = Utils::align_up(end, Paging::ByteUnits::KB4);
 
         while (addr < end_addr) {
-            MarkPage(addr, used);
+            mark_page(addr, used);
             addr += Paging::ByteUnits::KB4;
         }
     }
 
-    auto RemapMemorySections(multiboot_info* mb_info) noexcept {
+    auto remap_memory_sections(multiboot_info* mb_info) noexcept {
         auto* mmap_entry = reinterpret_cast<multiboot_memory_map_t*>(mb_info->mmap_addr);
 
         // Compute end‐of‐buffer pointer:
@@ -59,7 +59,7 @@ namespace Memory {
             std::uint32_t type = mmap_entry->type;
 
             if (type == MULTIBOOT_MEMORY_RESERVED) {
-#ifdef __NOS_DEBUG__
+#ifdef __KERNEL_DEBUG__
                 IO::kprintf("Reserved: 0x%08llX - 0x%08llX -> 0x%08llX - 0x%08llX\r\n",
                     base, base + length - 1, nextAvailAddr, nextAvailAddr + length - 1
                 );
@@ -92,7 +92,7 @@ namespace Memory {
             std::uint32_t type = mmap_entry->type;
 
             if (type == MULTIBOOT_MEMORY_AVAILABLE) {
-#ifdef __NOS_DEBUG__
+#ifdef __KERNEL_DEBUG__
                 IO::kprintf("Free: 0x%08llX - 0x%08llX -> 0x%08llX - 0x%08llX\r\n",
                     base, base + length, nextAvailAddr, nextAvailAddr + length
                 );
@@ -119,21 +119,21 @@ namespace Memory {
     void PhysicalMemoryAllocator::init(struct multiboot_info* mb_info) noexcept {
         [[maybe_unused]] auto [memstart, memend] = remap_memory_sections(mb_info);
 
-#ifdef __NOS_DEBUG__
+#ifdef __KERNEL_DEBUG__
         IO::kprintf(
-            "Free memory: 0x%X -> 0x%X\r\n",
+            "Free memory: 0x%lX -> 0x%lX\r\n",
             memstart,
             memend
         );
 #endif
 
-        MarkPageRange(
+        mark_page_range(
             reinterpret_cast<std::uintptr_t>(__kernel_start__),
             reinterpret_cast<std::uintptr_t>(__kernel_end__),
             true
         );
 
-	    Memory::VMM::Init(memstart, memend - memstart);
+	    Memory::g_vmmAllocator.init(memstart, memend - memstart);
     }
 
     Utils::array_view<void*> PhysicalMemoryAllocator::request_pages(
@@ -143,6 +143,10 @@ namespace Memory {
         if (pages == 0 || pages > m_bitmap.size() * 8) {
             return nullptr;
         }
+
+#ifdef __KERNEL_DEBUG__
+        IO::kprintf("PMM: Requesting %lu pages\r\n", pages);
+#endif
 
         for (std::size_t i = 0; i < (m_bitmap.size() * 8); ++i) {
             // Check if we have enough remaining bits to satisfy the request
