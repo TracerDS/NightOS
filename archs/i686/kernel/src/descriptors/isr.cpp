@@ -274,28 +274,38 @@ namespace ISR {
 
     ISRHandler g_ISRHandlers[ISR_COUNT] {};
     constexpr const char* g_ISRExceptions[] = {
-        "Divide by zero error",          // 0
-        "Debug exception",               // 1
-        "Non-maskable Interrupt",        // 2
-        "Breakpoint",                    // 3
-        "Overflow",                      // 4
-        "Bound Range Exceeded",          // 5
-        "Invalid Opcode",                // 6
-        "Device Not Available",          // 7
-        "Double Fault",                  // 8
-        "Coprocessor Segment Overrun",   // 9
-        "Invalid TSS",                   // 10
-        "Segment Not Present",           // 11
-        "Stack-Segment Fault",           // 12
-        "General Protection Fault",      // 13
-        "Page Fault",                    // 14
-        "",                              // 15
-        "x87 Floating-Point Exception",  // 16
-        "Alignment Check",               // 17
-        "Machine Check",                 // 18
-        "SIMD Floating-Point Exception", // 19
-        "Virtualization Exception",      // 20
-        "Control Protection Exception ", // 21
+        "Divide by zero error",           // 0
+        "Debug exception",                // 1
+        "Non-maskable Interrupt",         // 2
+        "Breakpoint",                     // 3
+        "Overflow",                       // 4
+        "Bound Range Exceeded",           // 5
+        "Invalid Opcode",                 // 6
+        "Device Not Available",           // 7
+        "Double Fault",                   // 8
+        "Coprocessor Segment Overrun",    // 9
+        "Invalid TSS",                    // 10
+        "Segment Not Present",            // 11
+        "Stack-Segment Fault",            // 12
+        "General Protection Fault",       // 13
+        "Page Fault",                     // 14
+        "",                               // 15
+        "x87 Floating-Point Exception",   // 16
+        "Alignment Check",                // 17
+        "Machine Check",                  // 18
+        "SIMD Floating-Point Exception",  // 19
+        "Virtualization Exception",       // 20
+        "Control Protection Exception",   // 21
+        "",                               // 22
+        "",                               // 23
+        "",                               // 24
+        "",                               // 25
+        "",                               // 26
+        "",                               // 27
+        "Hypervisor Injection Exception", // 28
+        "VMM Communication Exception",    // 29
+        "Security Exception",             // 30
+        "",                               // 31
     };
 
     void ISR_RegisterHandler(std::uint8_t interrupt, ISRHandler handler) noexcept {

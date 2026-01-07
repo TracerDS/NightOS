@@ -1,7 +1,6 @@
 #include <init.hpp>
 #include <cstddef>
 #include <cstdint>
-#include <array>
 
 #include <terminal.hpp>
 
@@ -9,8 +8,10 @@
 #include <descriptors/idt.hpp>
 #include <descriptors/isr.hpp>
 #include <descriptors/irq.hpp>
+#include <descriptors/kernel_interrupts.hpp>
 #include <memory/paging.hpp>
 #include <memory/pmm.hpp>
+#include <memory/vmm.hpp>
 #include <logger.hpp>
 #include <io.hpp>
 #include <serial.hpp>
@@ -45,7 +46,6 @@ extern std::uint8_t __bss_end__[];
 extern std::uint8_t __kernel_start__[];
 extern std::uint8_t __kernel_end__[];
 
-
 void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info) noexcept {
 	// Check magic number
 	if (magic != MULTIBOOT_BOOTLOADER_MAGIC) {
@@ -68,7 +68,7 @@ void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info) noexcept {
 #endif
 
 	// Reinitialize paging
-	Paging::Paging_Initialize();
+	Paging::g_paging.init();
 
 	// Paging enabled, set to our page directory in src/paging.cpp
 
@@ -82,7 +82,7 @@ void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info) noexcept {
 	ISR::ISR_Initialize();
 	IRQ::IRQ_Init();
 	
-	Memory::Init(mb_info);
+	Memory::g_pmmAllocator.init(mb_info);
 
 	ISR::ISR_RegisterHandler(0x20, []([[maybe_unused]] ISR::ISR_RegistersState* regs) {
 		if (false) {
@@ -94,21 +94,40 @@ void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info) noexcept {
 			}
 		}
 	});
+	ISR::ISR_RegisterHandler(
+		ISR::KernelInterrupts::KERNEL_PANIC,
+		[]([[maybe_unused]] ISR::ISR_RegistersState* regs) {
+			IO::kprintf(
+				"Kernel Panic!\r\n"
+				"EIP: 0x%08lX\r\n"
+				"Error: %ld\r\n"
+				"Halting system...\r\n",
+				regs->eip,
+				regs->error
+			);
+
+			asm volatile("cli\n");
+			while (true) {
+				asm volatile("hlt\n");
+			}
+		}
+	);
 	
-	char* addr = (char*)Memory::request_pages(1);
-	IO::kprintf("Allocated page at: 0x%X\r\n", (unsigned int)addr);
+	auto addr = Memory::g_pmmAllocator.request_pages(1);
+	IO::kprintf("Allocated page at: 0x%X\r\n", (unsigned int)addr.data());
 
 	for(int i=0; i<4096 / 4; ++i) {
-		((std::uint32_t*)addr)[i] = 0xDEADBEEF;
+		((std::uint32_t*)addr.data())[i] = 0xDEADBEEF;
 	}
-	
-	__asm__("sti\n");
-	while (true) {
-		__asm__(
-			"nop\n"
-		);
+	Memory::g_pmmAllocator.free_pages(addr);
+
+	int* ptr = new int(42);
+	if (!ptr) {
+		Utils::Asm::KernelPanic();
 	}
-	return;
+
+	IO::kprintf("Dynamically allocated integer at: 0x%08lX with value %d\r\n", (uintptr_t)ptr, *ptr);
+	delete ptr;
 
 	//Log::Logger::log("Logging is working!");
 
@@ -178,16 +197,7 @@ void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info) noexcept {
 		});
 	}
 
-	IO::kprintf("__kernel_start__: 0x%X\r\n", (unsigned int)__kernel_start__);
-	IO::kprintf("__kernel_end__:   0x%X\r\n", (unsigned int)__kernel_end__);
-	IO::kprintf("Kernel size:      0x%X\r\n", (unsigned int)(__kernel_end__ - __kernel_start__));
-	
-	IO::kprintf("\r\n");
-
-	// __asm__("int 0x1");
-
-	// Enable interrupts and loop
-	
+	// Enable interrupts and loop	
 	__asm__("sti\n");
 	while (true) {
 		__asm__(

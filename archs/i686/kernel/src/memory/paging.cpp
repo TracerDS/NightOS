@@ -1,15 +1,12 @@
 #include <memory/paging.hpp>
+#include <memory/pmm.hpp>
 
 #include <cstdint>
 #include <utility>
 #include <type_traits>
 
-namespace Memory {
-    extern void* request_pages(std::size_t pages) noexcept;
-}
-
 namespace Paging {
-    extern "C" void __kernel_load_page_directory__(const std::uint32_t* const addr) noexcept;
+    extern "C" void __kernel_load_page_directory__(const std::uintptr_t* const addr) noexcept;
     extern "C" void __kernel_enable_paging__() noexcept;
     extern "C" void __kernel_disable_paging__() noexcept;
     extern "C" void __kernel_paging_enable_pse__() noexcept;
@@ -20,9 +17,9 @@ namespace Paging {
     extern "C" std::uint8_t __kernel_start__[];
     extern "C" std::uint8_t __kernel_end__[];
 
-    alignas(ByteUnits::KB4) static std::uint32_t gs_pageDirectory[1024];
+    Paging g_paging{};
 
-    void Paging_Initialize() noexcept {
+    void Paging::init() noexcept {
         constexpr auto DEFAULT_FLAGS = PageFlags::PAGE_PRESENT |
             PageFlags::PAGE_READ_WRITE | PageFlags::PAGE_SIZE_ENABLE;
 
@@ -70,7 +67,11 @@ namespace Paging {
         __kernel_flush_tlb_all__();
     }
 
-    void map_page(std::uint32_t physAddr, std::uint32_t virtualAddr, std::uint32_t flags) noexcept {
+    void Paging::map_page(
+        std::uintptr_t physAddr,
+        std::uintptr_t virtualAddr,
+        std::uint32_t flags
+    ) noexcept {
         std::uintptr_t pageDirIndex = virtualAddr >> 22;
         std::uintptr_t pageTableIndex = (virtualAddr >> 12) & 0x3FF;
 
@@ -97,7 +98,7 @@ namespace Paging {
             pageTable = reinterpret_cast<std::uintptr_t*>(pageDirEntry & 0xFFFFF000);
         } else {
             // Create new page table
-            void* newTablePhys = Memory::request_pages(1);
+            auto newTablePhys = Memory::g_pmmAllocator.request_pages(1);
             if (!newTablePhys) {
                 // Out of memory. PANIC
 #ifdef __NOS_DEBUG__
@@ -106,15 +107,16 @@ namespace Paging {
                     physAddr, virtualAddr
                 );
 #endif
+                Utils::Asm::KernelPanic();
                 return;
             }
 
-            auto* tablePtr = reinterpret_cast<std::uintptr_t*>(newTablePhys);
+            auto* tablePtr = reinterpret_cast<std::uintptr_t*>(newTablePhys.data());
             for (auto i = 0; i < 1024; ++i)
                 tablePtr[i] = 0;
             
             gs_pageDirectory[pageDirIndex] =
-                reinterpret_cast<std::uint32_t>(newTablePhys) | 
+                reinterpret_cast<std::uint32_t>(newTablePhys.data()) | 
                     PageFlags::PAGE_PRESENT | PageFlags::PAGE_READ_WRITE;
 
             pageTable = tablePtr;
@@ -126,7 +128,7 @@ namespace Paging {
         __kernel_flush_tlb_entry__(reinterpret_cast<const void*>(virtualAddr));
     }
 
-    void unmap_page(std::uint32_t virtualAddr) noexcept {
+    void Paging::unmap_page(std::uintptr_t virtualAddr) noexcept {
         std::uintptr_t pageDirIndex = virtualAddr >> 22;
 
         auto pageDirEntry = gs_pageDirectory[pageDirIndex];

@@ -25,8 +25,6 @@ CXXFLAGS :=
 ASFLAGS := 
 LDFLAGS := -T linker.$(LNK_EXT) -O2 -nostdlib -L$(OPT_DIR)/../lib/gcc/$(CROSS_PREFIX)/$(GCC_VERSION)
 
-CRT_OBJS := crt.$(OUT_EXT)
-
 BOOTLOADER_DIR := bootloader
 KERNEL_DIR := kernel
 
@@ -42,16 +40,14 @@ link: compile
 	@mkdir -p $(BIN_DIR)
 	
 	$(LD) $(LDFLAGS) -o $(BIN_DIR)/$(ARCH_NAME).$(BIN_EXT) \
-		$(CRT_OBJS) \
 		$(shell find $(BOOTLOADER_DIR) -type f -name '*.$(OUT_EXT)') \
 		$(shell find $(KERNEL_DIR) -type f -name '*.$(OUT_EXT)') \
 	-lgcc
-	rm $(CRT_OBJS)
 
 clean:
 	$(MAKE) -C $(BOOTLOADER_DIR) clean
 	$(MAKE) -C $(KERNEL_DIR) clean
-	rm -f -r $(CRT_OBJS) $(BIN_DIR)
+	rm -f -r $(BIN_DIR)
 
 info:
 	@echo "ARCH_NAME: $(ARCH_NAME)"
@@ -81,7 +77,6 @@ info:
 	@echo "LDFLAGS: $(LDFLAGS)"
 	@echo ""
 	@echo "GCC_VERSION: $(GCC_VERSION)"
-	@echo "CRT_OBJS: $(CRT_OBJS)"
 	@echo "BOOTLOADER_DIR: $(BOOTLOADER_DIR)"
 	@echo "KERNEL_DIR: $(KERNEL_DIR)"
 

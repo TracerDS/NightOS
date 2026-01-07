@@ -53,8 +53,19 @@ namespace Paging {
         constexpr auto GB4 = 4 * GB;
     }
 
-    void Paging_Initialize() noexcept;
+    class Paging {
+    public:
+        void init() noexcept;
 
-    void map_page(std::uint32_t physAddr, std::uint32_t virtualAddr, std::uint32_t flags) noexcept;
-    void unmap_page(std::uint32_t virtualAddr) noexcept;
+        void map_page(
+            std::uintptr_t physAddr,
+            std::uintptr_t virtualAddr,
+            std::uintptr_t flags
+        ) noexcept;
+        void unmap_page(std::uintptr_t virtualAddr) noexcept;
+    private:
+        alignas(ByteUnits::KB4) std::uint32_t gs_pageDirectory[1024];
+    };
+
+    extern Paging g_paging;
 }

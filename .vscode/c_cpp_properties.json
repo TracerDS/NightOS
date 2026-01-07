@@ -22,7 +22,8 @@
                 "-nostdlib",
                 "-nostartfiles",
                 "-nodefaultlibs",
-                "-mno-red-zone"
+                "-mno-red-zone",
+                "-m32"
             ],
             "cStandard": "c23",
             "cppStandard": "c++23"

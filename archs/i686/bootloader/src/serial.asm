@@ -4,7 +4,7 @@ global __kernel_serial_write_dword__:function (__kernel_serial_write_dword__.end
 __kernel_serial_write_dword__:
     .start:
         movzx edx, word [esp + 4]
-        movzx eax, dword [esp + 8]
+        mov eax, dword [esp + 8]
 
         out dx, eax
         xor eax, eax

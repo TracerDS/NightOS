@@ -20,7 +20,7 @@ AS := nasm
 LD := $(OPT_DIR)/$(ARCH_NAME)-elf-ld
 AR := $(OPT_DIR)/$(ARCH_NAME)-elf-ar
 
-CXXFLAGS := -march=$(ARCH_NAME) -std=c++2b -masm=intel \
+CXXFLAGS := -march=$(ARCH_NAME) -std=c++2c -masm=intel \
 	-fno-exceptions -fno-rtti -ffreestanding \
 	-nostdlib -nostartfiles -nodefaultlibs -mno-red-zone \
 	-Wall -Wextra -Wpedantic \
@@ -36,7 +36,6 @@ ASM_FILES := $(shell find $(SRC_DIR) -type f -name *.$(ASM_EXT))
 OUT_FILES := $(patsubst $(SRC_DIR)/%.$(SRC_EXT),$(OUT_DIR)/%.$(OUT_EXT),$(SRC_FILES))
 
 compile: $(OUT_FILES)
-	mv $(OUT_DIR)/crt.$(OUT_EXT) ..
 
 $(OUT_DIR)/%.$(OUT_EXT): $(SRC_DIR)/%.$(SRC_EXT)
 	@mkdir -p $(patsubst $(SRC_DIR)/%,$(OUT_DIR)/%,$(dir $<))
