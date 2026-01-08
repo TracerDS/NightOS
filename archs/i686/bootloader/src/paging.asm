@@ -62,7 +62,7 @@ global __kernel_flush_tlb_entry__:function (__kernel_flush_tlb_entry__.end - __k
 __kernel_flush_tlb_entry__:
     .start:
         ; [esp + 4] = address to flush
-        mov eax, dword [esp + 4] ; Load the address to flush from the stack
+        lea eax, dword [esp + 4] ; Load the address to flush from the stack
         invlpg [eax] ; Invalidate the TLB entry for the specified address
 
         xor eax, eax ; Clear EAX to avoid any garbage value

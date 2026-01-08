@@ -17,7 +17,7 @@ namespace TSS {
 #endif
     };
     
-    struct TSS_Entry {
+    struct PACKED Entry {
         std::uint32_t prev_tss;   // The previous TSS - if we used hardware task switching this would form a linked list.
         std::uint32_t esp0;       // The stack pointer to load when we change to kernel mode.
         std::uint32_t ss0;        // The stack segment to load when we change to kernel mode.
@@ -46,10 +46,10 @@ namespace TSS {
         std::uint16_t reserved;
         std::uint16_t iomap;
         std::uint32_t ssp;
-    } __attribute__((packed));
+    };
 }
 
-namespace GDT {    
+namespace GDT {
     enum AccessType : std::uint8_t {
         AT_VALID_SEGMENT    = 1 << 7,
         AT_INVALID_SEGMENT  = 0 << 7,
@@ -92,24 +92,20 @@ namespace GDT {
         F_64BIT_MODE = 1 << 1, // 64-bit segment.
         F_32BIT_MODE = 0 << 1, // Non 64bit segment.
     };
-
-    struct GDT_Entry {
+    
+    struct PACKED Entry {
         std::uint16_t limit_lo;      // Lower 16 bits of the limit
         std::uint32_t base_lo : 24;  // Lower 24 bits of the base
         std::uint8_t access;         // Access flags, determine what ring this segment can be accessed from
         std::uint8_t limit_hi : 4;   // Upper 4 bits of the limit
         std::uint8_t flags : 4;      // Granularity and size
         std::uint8_t base_hi;        // Upper 8 bits of the base
-    } __attribute__((packed));
+    };
 
-    struct GDT_Descriptor {
+    struct PACKED Descriptor {
         std::uint16_t limit;    // sizeof(gdt) - 1
-        const GDT_Entry* entry; // address of GDT
-    } __attribute__((packed));
+        const Entry* entry; // address of GDT
+    };
 
-    bool GDT_Initialize() noexcept;
-    
-    extern std::uint8_t g_CodeSegmentOffset;
-    extern std::uint8_t g_DataSegmentOffset;
-
+    void Init() noexcept;
 }

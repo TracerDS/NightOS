@@ -62,9 +62,13 @@ namespace Paging {
             std::uintptr_t virtualAddr,
             std::uintptr_t flags
         ) noexcept;
+        
         void unmap_page(std::uintptr_t virtualAddr) noexcept;
+
+        std::uintptr_t get_physical_address(std::uintptr_t virtualAddr) noexcept;
+        std::uintptr_t get_virtual_address(std::uintptr_t physicalAddr) noexcept;
     private:
-        alignas(ByteUnits::KB4) std::uint32_t gs_pageDirectory[1024];
+        alignas(ByteUnits::KB4) std::uintptr_t m_pageDirectory[1024];
     };
 
     extern Paging g_paging;

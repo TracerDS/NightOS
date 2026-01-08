@@ -28,16 +28,16 @@ namespace Paging {
 
         // Reset paging structures (BSS is typically zeroed, but keep this explicit)
         for (std::size_t i = 0; i < 1024; ++i) {
-            gs_pageDirectory[i] = 0;
+            m_pageDirectory[i] = 0;
         }
         
         auto kernel_boot_int = reinterpret_cast<std::uintptr_t>(__kernel_post_boot_start__);
         auto kernel_start_int = reinterpret_cast<std::uintptr_t>(__kernel_start__);
         auto kernel_end_int = reinterpret_cast<std::uintptr_t>(__kernel_end__);
             
-        auto kernel_offset = kernel_start_int - kernel_boot_int;
-        auto kernel_start_phys = kernel_start_int - kernel_offset;
-        auto kernel_end_phys = kernel_end_int - kernel_offset;
+        std::uintptr_t kernel_offset = kernel_start_int - kernel_boot_int;
+        std::uintptr_t kernel_start_phys = kernel_start_int - kernel_offset;
+        std::uintptr_t kernel_end_phys = kernel_end_int - kernel_offset;
 
         // 4MB (PSE) mappings require 4MB alignment; map the aligned region containing the kernel.
         auto kernel_start_phys_aligned = Utils::align_down(kernel_start_phys, ByteUnits::MB4);
@@ -46,24 +46,36 @@ namespace Paging {
 
         auto kernel_pages = (kernel_end_phys_aligned - kernel_start_phys_aligned) / ByteUnits::MB4;
 
-        // Memory map first 4MBs
+        // Identity map the first 4MBs
         map_page(0x0, 0x0, DEFAULT_FLAGS);
 
         // Map the kernel pages
         for (std::size_t i = 0; i < kernel_pages; ++i) {
             map_page (
-                static_cast<std::uint32_t>(kernel_start_phys_aligned + (i * ByteUnits::MB4)),
-                static_cast<std::uint32_t>(kernel_start_virt_aligned + (i * ByteUnits::MB4)),
+                kernel_start_phys_aligned + (i * ByteUnits::MB4),
+                kernel_start_virt_aligned + (i * ByteUnits::MB4),
                 DEFAULT_FLAGS
             );
         }
 
         // CR3 must receive the PHYSICAL address of the page directory.
         // We can compute it via the kernel offset (virtual - physical).
-        auto pageDirVirt = reinterpret_cast<std::uint32_t>(gs_pageDirectory);
-        auto pageDirPhys = static_cast<std::uint32_t>(pageDirVirt - kernel_offset);
+        auto pageDirVirt = reinterpret_cast<std::uintptr_t>(m_pageDirectory);
+        auto pageDirPhys = pageDirVirt - kernel_offset;
 
-        __kernel_load_page_directory__(reinterpret_cast<const std::uint32_t*>(pageDirPhys));
+        IO::kprintf("Paging: Page Directory at virt 0x%08lX, phys 0x%08lX\r\n",
+            pageDirVirt,
+            pageDirPhys
+        );
+
+        // Map the page directory into itself (for easy access at 0xFFC00000)
+        
+        // Map it manually. map_page would try to allocate a new page table
+        // but the allocator isnt ready yet.
+        m_pageDirectory[1023] = (pageDirPhys & 0xFFFFF000) |
+            PageFlags::PAGE_PRESENT | PageFlags::PAGE_READ_WRITE;
+
+        __kernel_load_page_directory__(reinterpret_cast<std::uintptr_t*>(pageDirPhys));
         __kernel_enable_paging__();
         __kernel_flush_tlb_all__();
     }
@@ -79,9 +91,9 @@ namespace Paging {
         flags |= PageFlags::PAGE_PRESENT;
 
         // 4MB page mapping
-        if (flags & PageFlags::PAGE_SIZE_ENABLE) {
+        if (Utils::Bits::IsBitMaskSet(flags, PageFlags::PAGE_SIZE_ENABLE)) {
             // Large pages require 4MB alignment.
-            gs_pageDirectory[pageDirIndex] = (physAddr & 0xFFC00000) | flags;
+            m_pageDirectory[pageDirIndex] = (physAddr & 0xFFC00000) | flags;
 
             __kernel_flush_tlb_entry__(
                 reinterpret_cast<const void*>(virtualAddr)
@@ -89,7 +101,7 @@ namespace Paging {
             return;
         }
 
-        std::uintptr_t pageDirEntry = gs_pageDirectory[pageDirIndex];
+        auto pageDirEntry = m_pageDirectory[pageDirIndex];
 
         std::uintptr_t* pageTable = nullptr;
 
@@ -116,8 +128,8 @@ namespace Paging {
             for (auto i = 0; i < 1024; ++i)
                 tablePtr[i] = 0;
             
-            gs_pageDirectory[pageDirIndex] =
-                reinterpret_cast<std::uint32_t>(newTablePhys.data()) | 
+            m_pageDirectory[pageDirIndex] =
+                reinterpret_cast<std::uintptr_t>(newTablePhys.data()) | 
                     PageFlags::PAGE_PRESENT | PageFlags::PAGE_READ_WRITE;
 
             pageTable = tablePtr;
@@ -132,7 +144,7 @@ namespace Paging {
     void Paging::unmap_page(std::uintptr_t virtualAddr) noexcept {
         std::uintptr_t pageDirIndex = virtualAddr >> 22;
 
-        auto pageDirEntry = gs_pageDirectory[pageDirIndex];
+        auto pageDirEntry = m_pageDirectory[pageDirIndex];
 
         if (!(pageDirEntry & PageFlags::PAGE_PRESENT)) {
             // Page not present
@@ -141,17 +153,12 @@ namespace Paging {
 
         if (pageDirEntry & PageFlags::PAGE_SIZE_ENABLE) {
             // 4MB page
-            gs_pageDirectory[pageDirIndex] = 0;
+            m_pageDirectory[pageDirIndex] = 0;
         } else {
             // 4 KB page
             
-            auto pageTable = reinterpret_cast<std::uint32_t*>(pageDirEntry & 0xFFFFF000);
-            std::uint32_t pageTableIndex = (virtualAddr >> 12) & 0x3FF;
-            
-            // Validate page table index
-            if (pageTableIndex >= 1024) {
-                return;
-            }
+            auto pageTable = reinterpret_cast<std::uintptr_t*>(pageDirEntry & 0xFFFFF000);
+            std::uintptr_t pageTableIndex = (virtualAddr >> 12) & 0x3FF;
             
             pageTable[pageTableIndex] = 0;
         }

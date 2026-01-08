@@ -20,46 +20,51 @@ namespace Memory {
         std::size_t totalSize;
         NodeHeader* head;
     public:
-        void Initialize(std::uintptr_t startVirtAddr, std::size_t initialSize) noexcept;
+        void Initialize(std::uintptr_t startPhysAddr, std::size_t size) noexcept;
         void* Allocate(std::size_t size) noexcept;
         void Free(void* ptr) noexcept;
     };
     LinkedListAllocator g_linkedListAllocator{};
 
-    void LinkedListAllocator::Initialize(std::uintptr_t startVirtAddr, std::size_t initialSize) noexcept {
+    void LinkedListAllocator::Initialize(std::uintptr_t startPhysAddr, std::size_t size) noexcept {
         // Assume we are mapped in already
-        auto pagesNeeded = Utils::align_up(initialSize, Paging::ByteUnits::KB4) / Paging::ByteUnits::KB4;
+        auto pagesNeeded = Utils::align_up(size, Paging::ByteUnits::KB4) / Paging::ByteUnits::KB4;
     
+#ifdef __KERNEL_DEBUG__
+        IO::kprintf("VMM: Initializing with %08lX bytes (%lu pages)\r\n",
+            size,
+            pagesNeeded
+        );
+#endif
+
         for (std::size_t i = 0; i < pagesNeeded; ++i) {
             // Get the physical page
             auto physAddr = g_pmmAllocator.request_pages(1);
             if (!physAddr) {
                 // No memory. Panic
+                IO::kprintf_color(
+                    "VMM: Out of memory during initialization!\r\n",
+                    Terminal::Terminal::VGAColor::VGA_COLOR_LIGHT_RED,
+                    Terminal::Terminal::VGAColor::VGA_COLOR_BLACK
+                );
                 Utils::Asm::KernelPanic();
                 return;
             }
-            
-#ifdef __KERNEL_DEBUG__
-            IO::kprintf("VMM: Mapping virtual 0x%lX to physical 0x%lX\r\n",
-                startVirtAddr + (i * Paging::ByteUnits::KB4),
-                reinterpret_cast<std::uintptr_t>(physAddr.data())
-            );
-#endif
 
             // Map it
             Paging::g_paging.map_page(
                 reinterpret_cast<std::uintptr_t>(physAddr.data()), 
-                startVirtAddr + (i * Paging::ByteUnits::KB4), 
+                startPhysAddr + (i * Paging::ByteUnits::KB4), 
                 Paging::PageFlags::PAGE_PRESENT | Paging::PageFlags::PAGE_READ_WRITE
             );
         }
 
-        baseAddr = reinterpret_cast<void*>(startVirtAddr);
-        totalSize = initialSize;
+        baseAddr = reinterpret_cast<void*>(startPhysAddr);
+        totalSize = size;
 
         // Create the first, large, free block
-        head = reinterpret_cast<NodeHeader*>(startVirtAddr);
-        head->size = initialSize - sizeof(NodeHeader);
+        head = reinterpret_cast<NodeHeader*>(startPhysAddr);
+        head->size = size - sizeof(NodeHeader);
         head->isFree = true;
         head->next = nullptr;
     }
@@ -135,7 +140,6 @@ namespace Memory {
         g_linkedListAllocator.Free(ptr);
     }
 }
-
 
 void* operator new(std::size_t size) noexcept {
     return Memory::g_vmmAllocator.allocate(size);

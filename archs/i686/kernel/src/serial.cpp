@@ -1,18 +1,22 @@
 #include <serial.hpp>
+#include <io.hpp>
 
 #ifdef __NOS_SERIAL_DEBUG__
 #   include <klibc/cassert>
 #endif
 
-extern "C" std::uint8_t __kernel_serial_read_byte__(std::uint16_t port) noexcept;
-extern "C" std::uint16_t __kernel_serial_read_word__(std::uint16_t port) noexcept;
-extern "C" std::uint32_t __kernel_serial_read_dword__(std::uint16_t port) noexcept;
-
-extern "C" void __kernel_serial_write_byte__(std::uint16_t port, std::uint8_t data) noexcept;
-extern "C" void __kernel_serial_write_word__(std::uint16_t port, std::uint16_t data) noexcept;
-extern "C" void __kernel_serial_write_dword__(std::uint16_t port, std::uint32_t data) noexcept;
+#include <utility>
 
 namespace Serial {
+    extern "C" std::uint8_t __kernel_serial_read_byte__(Serial::Port port) noexcept;
+    extern "C" std::uint16_t __kernel_serial_read_word__(Serial::Port port) noexcept;
+    extern "C" std::uint32_t __kernel_serial_read_dword__(Serial::Port port) noexcept;
+    
+    extern "C" void __kernel_serial_write_byte__(Serial::Port port, std::uint8_t data) noexcept;
+    extern "C" void __kernel_serial_write_word__(Serial::Port port, std::uint16_t data) noexcept;
+    extern "C" void __kernel_serial_write_dword__(Serial::Port port, std::uint32_t data) noexcept;
+
+
     // Interrupt enable register
     namespace IER {
         constexpr std::uint8_t RECEIVED_DATA_AVAILABLE  = 1 << 0;
@@ -101,56 +105,36 @@ namespace Serial {
 
     constexpr std::uint32_t DAUB_RATE = 115200; // Default baud rate
 
-    bool Initialize(std::uint16_t port) noexcept {
-        WriteByte(port + 1, 0x00);              // Disable interrupts
-        WriteByte(port + 3, LCR::DLAB_ENABLE);
-        WriteByte(port + 0, 0x03);              // 115200 / X = DAUB rate. Set to 38400 bps (X = 3)
-        WriteByte(port + 1, 0x00);              // High byte of divisor
-        WriteByte(port + 3, LCR::CHAR_8_BITS | LCR::PARITY_NONE | LCR::ONE_STOP_BIT);
-        WriteByte(port + 2, FIFOCR::FIFO_ENABLE | FIFOCR::CLEAR_ALL_FIFOS | FIFOCR::INT_TRIGGER_BYTE14);
-        WriteByte(port + 4, MCR::IRQ_ENABLE | MCR::DTR_PIN | MCR::RTS_PIN);
-
-        // Test if serial is faulty
-        WriteByte(port + 4, MCR::RTS_PIN | MCR::OUT1_PIN | MCR::OUT2_PIN | MCR::LOOPBACK_MODE);
-        WriteByte(port + 0, 0xDD);
-        if (ReadByte(port + 0) != 0xDD) {
-            return false; // Serial port is faulty
-        }
-        WriteByte(port + 4, MCR::DTR_PIN | MCR::RTS_PIN | MCR::OUT1_PIN | MCR::OUT2_PIN);
-
-        return true;
-    }
-
-    bool __serial_is_ready_to_read__(std::uint16_t port) noexcept {
-        auto read = __kernel_serial_read_byte__(port + 5);
-        return (read & LSR::DATA_READY) != 0;
-    }
-    bool __serial_is_ready_to_write__(std::uint16_t port) noexcept {
-        auto read = __kernel_serial_read_byte__(port + 5);
-        return (read & LSR::TH_REGISTER_EMPTY) != 0;
-    }
-
-    constexpr bool __serial_is_com__(std::uint16_t port) noexcept {
+    constexpr bool __serial_is_com__(Serial::Port port) noexcept {
         switch(port) {
-            case Ports::COM1:
-            case Ports::COM2:
-            case Ports::COM3:
-            case Ports::COM4:
-            case Ports::COM5:
-            case Ports::COM6:
-            case Ports::COM7:
-            case Ports::COM8:
+            case Serial::COM1:
+            case Serial::COM2:
+            case Serial::COM3:
+            case Serial::COM4:
+            case Serial::COM5:
+            case Serial::COM6:
+            case Serial::COM7:
+            case Serial::COM8:
                 return true;
             default:
                 return false;
         }
     }
+    bool __serial_is_ready_to_read__(Serial::Port port) noexcept {
+        auto read = __kernel_serial_read_byte__(port + 5);
+        return Utils::Bits::IsBitMaskSet(read, LSR::DATA_READY);
+    }
+
+    bool __serial_is_ready_to_write__(Serial::Port port) noexcept {
+        auto read = __kernel_serial_read_byte__(port + 5);
+        return Utils::Bits::IsBitMaskSet(read, LSR::TH_REGISTER_EMPTY);
+    }
     
 #ifdef __NOS_SERIAL_DEBUG__
-    static constexpr std::uint64_t __gs_max_wait_timeout__ = 100000;
+    static constexpr std::uint64_t __gs_max_wait_timeout__ = 10'0000;
 #endif
 
-    void __serial_wait_until_ready_to_read__(std::uint16_t port) noexcept {
+    void __serial_wait_until_ready_to_read__(Serial::Port port) noexcept {
 #ifdef __NOS_SERIAL_DEBUG__
         static std::uint64_t __gs_timeout__ = 0;
 #endif
@@ -161,9 +145,10 @@ namespace Serial {
             assert(__gs_timeout__ < __gs_max_wait_timeout__); // Ensure we don't loop indefinitely
 #endif
         }
+        __gs_timeout__ = 0;
     }
 
-    void __serial_wait_until_ready_to_write__(std::uint16_t port) noexcept {
+    void __serial_wait_until_ready_to_write__(Serial::Port port) noexcept {
 #ifdef __NOS_SERIAL_DEBUG__
         static std::uint64_t __gs_timeout__ = 0;
 #endif
@@ -174,13 +159,49 @@ namespace Serial {
             assert(__gs_timeout__ < __gs_max_wait_timeout__); // Ensure we don't loop indefinitely
 #endif
         }
+        __gs_timeout__ = 0;
     }
 
-    std::uint8_t ReadByte(std::uint16_t port) noexcept {
+    Serial g_serial{};
+
+    void Serial::init(Port port) noexcept {
+        if (!__serial_is_com__(port)) {
+            IO::kprintf("Serial::init: Unsupported port\r\n");
+            return;
+        }
+
+        __kernel_serial_write_byte__(port + 1, 0x00);              // Disable interrupts
+        __kernel_serial_write_byte__(port + 3, LCR::DLAB_ENABLE);  // Enable DLAB to set baud rate divisor
+        
+        // 115200 / X = DAUB rate.
+        __kernel_serial_write_byte__(port + 0, 0x03);              // Set to 3 (lo byte) (38400 bps)
+        __kernel_serial_write_byte__(port + 1, 0x00);              //          (hi byte)
+
+        __kernel_serial_write_byte__(
+            port + 3,
+            LCR::CHAR_8_BITS | LCR::PARITY_NONE | LCR::ONE_STOP_BIT
+        );
+        __kernel_serial_write_byte__(
+            port + 2,
+            FIFOCR::FIFO_ENABLE | FIFOCR::CLEAR_ALL_FIFOS | FIFOCR::INT_TRIGGER_BYTE14
+        );
+        __kernel_serial_write_byte__(
+            port + 4,
+            MCR::IRQ_ENABLE | MCR::DTR_PIN | MCR::RTS_PIN
+        );
+    }
+
+    void Serial::write_string(Port port, const char* const str) noexcept {
+        for (std::size_t i = 0; str[i] != '\0'; ++i) {
+            write_byte(port, static_cast<std::uint8_t>(str[i]));
+        }
+    }
+
+    std::uint8_t Serial::read_byte(Port port) noexcept {
         __serial_wait_until_ready_to_read__(port);
         return __kernel_serial_read_byte__(port);
     }
-    std::uint16_t ReadWord(std::uint16_t port) noexcept {
+    std::uint16_t Serial::read_word(Port port) noexcept {
         __serial_wait_until_ready_to_read__(port);
 
         if (!__serial_is_com__(port)) {
@@ -190,7 +211,7 @@ namespace Serial {
         std::uint8_t high = __kernel_serial_read_byte__(port);
         return high << 8 | low;
     }
-    std::uint32_t ReadDword(std::uint16_t port) noexcept {
+    std::uint32_t Serial::read_dword(Port port) noexcept {
         __serial_wait_until_ready_to_read__(port);
         
         if (!__serial_is_com__(port)) {
@@ -201,29 +222,16 @@ namespace Serial {
         return high << 16 | low;
     }
     
-    void WriteByte(std::uint16_t port, std::uint8_t data) noexcept {
+    void Serial::write_byte(Port port, std::uint8_t data) noexcept {
         __serial_wait_until_ready_to_write__(port);
         __kernel_serial_write_byte__(port, data);
     }
-    void WriteWord(std::uint16_t port, std::uint16_t data) noexcept {
+    void Serial::write_word(Port port, std::uint16_t data) noexcept {
         __serial_wait_until_ready_to_write__(port);
-
-        if (!__serial_is_com__(port)) {
-            __kernel_serial_write_word__(port, data);
-            return;
-        }
-        __kernel_serial_write_byte__(port, data & 0xFF);
-        __kernel_serial_write_byte__(port, (data & 0xFF00) >> 8);
+        __kernel_serial_write_word__(port, data);
     }
-    void WriteDword(std::uint16_t port, std::uint32_t data) noexcept {
+    void Serial::write_dword(Port port, std::uint32_t data) noexcept {
         __serial_wait_until_ready_to_write__(port);
-
-        if (!__serial_is_com__(port)) {
-            __kernel_serial_write_dword__(port, data);
-            return;
-        }
-
-        __kernel_serial_write_word__(port, data & 0xFFFF);
-        __kernel_serial_write_word__(port, (data & 0xFFFF0000) >> 16);
+        __kernel_serial_write_dword__(port, data);
     }
 }

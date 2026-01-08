@@ -6,6 +6,8 @@
 #include <limits>
 
 namespace Terminal {
+    Terminal g_Terminal{};
+
     Terminal::Terminal() noexcept
         : m_buffer(reinterpret_cast<std::uint16_t*>(0xB8000)), m_width(80), m_height(25) {
         for (auto y = 0; y < m_height; ++y) {

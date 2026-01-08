@@ -2,10 +2,21 @@
 
 #include <init.hpp>
 
+#include <klibc/cstring>
+
+#include <initializer_list>
+
 namespace klibc {
     template <class T, std::size_t N>
     class array {
     public:
+        constexpr array() noexcept {}
+        constexpr array(std::initializer_list<T> elems) noexcept {
+            for(std::size_t i = 0; i < N && i < elems.size(); ++i) {
+                m_data[i] = *(elems.begin() + i);
+            }
+        }
+
         constexpr std::size_t size() const noexcept { return N; }
         constexpr T& operator[](std::size_t index) noexcept { return m_data[index]; }
         constexpr const T& operator[](std::size_t index) const noexcept { return m_data[index]; }
@@ -13,4 +24,7 @@ namespace klibc {
     protected:
         T m_data[N]{};
     };
+    
+    template <typename T, typename... U>
+    array(T, U...) -> array<T, 1 + sizeof...(U)>;
 }

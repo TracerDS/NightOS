@@ -19,6 +19,8 @@ static_assert(sizeof(void*) == 4, "Kernel must be compiled for 32-bit architectu
 
 #if defined(__clang__) || defined(__GNUC__) || defined(__GNUG__)
 #   define FORCE_INLINE [[gnu::always_inline]] inline
+#   define NO_INLINE    [[gnu::noinline]]
+#   define PACKED       [[gnu::packed]]
 #else
 #   error "Unsupported compiler"
 #endif
@@ -29,6 +31,9 @@ static_assert(sizeof(void*) == 4, "Kernel must be compiled for 32-bit architectu
 #include <cstdint>
 
 namespace Utils {
+    template <typename T>
+    concept is_cstring = std::is_same_v<std::remove_cvref_t<std::remove_pointer_t<T>>, char>;
+
     constexpr auto align_up(std::integral auto value, std::integral auto alignment) noexcept {
         return (value + alignment - 1) & ~(alignment - 1);
     }
@@ -63,23 +68,41 @@ namespace Utils {
     }
 
     namespace Bits {
+        template <typename T, typename U>
+        constexpr void SetBitMask(
+            T& value,
+            U mask
+        ) noexcept { value |= mask; }
+
+        template <typename T, typename U>
+        constexpr void ClearBitMask(
+            T& value,
+            U mask
+        ) noexcept { value &= ~mask; }
+
+        template <typename T, typename U>
+        constexpr bool IsBitMaskSet(
+            T value,
+            U mask
+        ) noexcept { return (value & mask) != 0; }
+
         template <typename T>
         constexpr void SetBit(
             T& value,
             std::uint8_t bit
-        ) noexcept { value |= (1 << bit); }
+        ) noexcept { SetBitMask(value, 1 << bit); }
 
         template <typename T>
         constexpr void ClearBit(
             T& value,
             std::uint8_t bit
-        ) noexcept { value &= ~(1 << bit); }
+        ) noexcept { ClearBitMask(value, 1 << bit); }
 
         template <typename T>
         constexpr bool IsBitSet(
             T value,
             std::uint8_t bit
-        ) noexcept { return (value & (1 << bit)) != 0; }
+        ) noexcept { return IsBitMaskSet(value, 1 << bit); }
     }
     
     namespace Asm {

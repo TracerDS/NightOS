@@ -26,7 +26,7 @@ namespace Memory {
     private:
         // Bitmap: 1 bit per 4KB page. Each bit: 1 = used, 0 = free
         // 0x20000 bytes = 4GB of memory
-        alignas(4096) klibc::array<std::uint8_t, 0x20000> m_bitmap{};
+        alignas(4096) klibc::array<std::uint8_t, 0x20000> m_bitmap;
     };
 
     extern PhysicalMemoryAllocator g_pmmAllocator;

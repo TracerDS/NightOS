@@ -1,11 +1,12 @@
 #pragma once
 
 #include <init.hpp>
+#include <klibc/cstring>
+
 #include <cstddef>
 #include <cstdint>
 #include <type_traits>
 #include <concepts>
-#include <klibc/string.h>
 
 namespace Terminal {
     class Terminal {
@@ -118,5 +119,5 @@ namespace Terminal {
         }
     };
     
-    inline Terminal g_Terminal{};
+    extern Terminal g_Terminal;
 }

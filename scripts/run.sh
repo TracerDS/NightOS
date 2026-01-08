@@ -19,6 +19,8 @@ if [[ ! -d "$SCRIPT_DIR/../logs" ]]; then
 	mkdir "$SCRIPT_DIR/../logs"
 fi
 
+>"$SCRIPT_DIR/../logs/qemu.log"
+
 qemu-system-i386 \
     -m 4G \
     -vga virtio -cdrom $target $args \
@@ -26,3 +28,4 @@ qemu-system-i386 \
     -d int,cpu_reset \
     -monitor stdio \
     -serial file:"$SCRIPT_DIR/../logs/com1_serial.log" \
+    -serial file:"$SCRIPT_DIR/../logs/com2_serial.log" \

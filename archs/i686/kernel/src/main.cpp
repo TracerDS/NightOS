@@ -67,24 +67,18 @@ void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info) noexcept {
     }
 #endif
 
-	// Reinitialize paging
-	Paging::g_paging.init();
-
-	// Paging enabled, set to our page directory in src/paging.cpp
-
 	// Initialize terminal interface
 
 	//Serial::Initialize(Serial::Ports::COM1);
 	StackFrame::PrintFrames(3);
 
-	GDT::GDT_Initialize();
-	IDT::IDT_Initialize();
-	ISR::ISR_Initialize();
+	GDT::Init();
+	IDT::g_IDT.init();
+
+	ISR::g_ISR.init();
 	IRQ::IRQ_Init();
 	
-	Memory::g_pmmAllocator.init(mb_info);
-
-	ISR::ISR_RegisterHandler(0x20, []([[maybe_unused]] ISR::ISR_RegistersState* regs) {
+	ISR::g_ISR.register_handler(0x20, []([[maybe_unused]] ISR::ISR_RegistersState* regs) {
 		if (false) {
 			static int ticks = 0;
 			++ticks;
@@ -94,14 +88,16 @@ void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info) noexcept {
 			}
 		}
 	});
-	ISR::ISR_RegisterHandler(
+	ISR::g_ISR.register_handler(
 		ISR::KernelInterrupts::KERNEL_PANIC,
 		[]([[maybe_unused]] ISR::ISR_RegistersState* regs) {
-			IO::kprintf(
+			IO::kprintf_color(
 				"Kernel Panic!\r\n"
 				"EIP: 0x%08lX\r\n"
 				"Error: %ld\r\n"
 				"Halting system...\r\n",
+				Terminal::Terminal::VGAColor::VGA_COLOR_LIGHT_RED,
+				Terminal::Terminal::VGAColor::VGA_COLOR_BLACK,
 				regs->eip,
 				regs->error
 			);
@@ -112,7 +108,30 @@ void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info) noexcept {
 			}
 		}
 	);
+
+	// Reinitialize paging
+	//Paging::g_paging.init();
+
+	IO::kprintf("Initializing COM1...\r\n");
+	Serial::g_serial.init(Serial::Serial::COM1);
+	IO::kprintf("Initializing COM2...\r\n");
+	Serial::g_serial.init(Serial::Serial::COM2);
+
+	IO::kprintf("Writing to serial...\r\n");
+	Serial::g_serial.write_com1("NightOS Kernel Serial Initialized\r\n");
+	Serial::g_serial.write_com2("Sample data\r\nwritten to com2\r\n");
+	IO::kprintf("Done!\r\n");
+
+	asm("hlt");
+
+	// Paging enabled, set to our page directory in src/paging.cpp
+	Memory::g_pmmAllocator.init(mb_info);
 	
+	IO::kprintf(
+		"Kernel loaded at: 0x%08lX - 0x%08lX\r\n",
+		reinterpret_cast<std::uintptr_t>(__kernel_start__),
+		reinterpret_cast<std::uintptr_t>(__kernel_end__)
+	);
 	auto addr = Memory::g_pmmAllocator.request_pages(1);
 	IO::kprintf("Allocated page at: 0x%X\r\n", (unsigned int)addr.data());
 
@@ -148,11 +167,11 @@ void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info) noexcept {
 	IO::kprintf("Data: %X\r\n", *(std::uint8_t*)(0x70400 + 0xC0000000) );
 
 	if (true) {
-		ISR::ISR_RegisterHandler(0x21, []([[maybe_unused]] ISR::ISR_RegistersState* regs) {
+		ISR::g_ISR.register_handler(0x21, []([[maybe_unused]] ISR::ISR_RegistersState* regs) {
 			static bool pressed = false;
 			static std::uint8_t prevCode = 0;
 			
-			auto code = Serial::ReadByte(0x60); // Acknowledge the keyboard interrupt
+			auto code = Serial::g_serial.read_byte(0x60); // Acknowledge the keyboard interrupt
 			if (pressed && code == prevCode) {
 				// Ignore repeated key events
 				return;

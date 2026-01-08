@@ -26,12 +26,8 @@ namespace Log {
     }
 
     void Logger::log(const char* message) {
-        auto msgLen = klibc::strlen(message);
-        for (std::size_t i = 0; i < msgLen; ++i) {
-            Serial::WriteByte(Serial::Ports::COM1, message[i]); // 0x3F8 is the default COM1 port
-        }
-        Serial::WriteByte(Serial::Ports::COM1, '\r'); // Carriage return for proper formatting
-        Serial::WriteByte(Serial::Ports::COM1, '\n'); // Add a newline at the end
+        Serial::g_serial.write_string(Serial::Serial::COM1, message);
+        Serial::g_serial.write_string(Serial::Serial::COM1, "\r\n");
         
         IO::kprintf("%s", message); // Also print to the console
     }

@@ -17,4 +17,6 @@ namespace Descriptors {
     } __attribute__((packed));
 
     static_assert(sizeof(SegmentSelector) == 2, "SegmentSelector size mismatch");
+
+    constexpr std::uint16_t INTERRUPT_COUNT = 256;
 }
