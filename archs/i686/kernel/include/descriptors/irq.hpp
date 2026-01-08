@@ -2,9 +2,9 @@
 
 #include <cstdint>
 
-namespace IRQ {
+namespace NOS::Interrupts {
     namespace PIC {        
-        namespace PIC_Ports {
+        namespace Ports {
             constexpr auto PIC1 = 0x20; // Master PIC
             constexpr auto PIC2 = 0xA0; // Slave PIC
 
@@ -17,10 +17,10 @@ namespace IRQ {
             constexpr auto PIT_CHANNEL0 = 0x40; // PIT channel 0 data port
             constexpr auto PIT_CHANNEL1 = 0x41; // PIT channel 1 data port
             constexpr auto PIT_CHANNEL2 = 0x42; // PIT channel 2 data port
-            constexpr auto PIT_COMMAND = 0x43; // PIT command port
+            constexpr auto PIT_COMMAND  = 0x43; // PIT command port
         }
 
-        namespace PIC_Flags {
+        namespace Flags {
             constexpr auto PIC_EOI = 0x20; // End of Interrupt command code
 
             constexpr auto ICW1 = 0x10;
@@ -41,8 +41,11 @@ namespace IRQ {
             constexpr auto PIT_RATE_GENERATOR = 0b010;
             constexpr auto PIT_SQUARE_GENERATOR = 0b010;
         }
-        void PIC_Init() noexcept;
     }
-    void IRQ_Init() noexcept;
-    void IRQ_SetClock(std::uint16_t frequency) noexcept;
+    
+    namespace IRQ {
+        void SetClock(std::uint16_t frequency) noexcept;
+    }
+    
+    void Init() noexcept;
 }

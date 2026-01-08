@@ -5,46 +5,32 @@
 #include <descriptors/descriptors.hpp>
 #include <klibc/array>
 
-namespace ISR {
-    struct ISR_RegistersState {
-        using isr_register_type_t = std::uint32_t;
+namespace NOS::Interrupts::ISR {
+    struct InterruptState {
+        using register_type = std::uint32_t;
 
         // in reversed order
-        isr_register_type_t ss, gs, fs, es, ds;
+        register_type ss, gs, fs, es, ds;
 
-        isr_register_type_t edi, esi, ebp, esp, ebx, edx, ecx, eax;
+        register_type edi, esi, ebp, esp, ebx, edx, ecx, eax;
 
         // pushed by the CPU
-        isr_register_type_t interrupt;
-        isr_register_type_t error;
-        isr_register_type_t eip;
-        isr_register_type_t cs;
-        isr_register_type_t eflags;
+        register_type interrupt;
+        register_type error;
+        register_type eip;
+        register_type cs;
+        register_type eflags;
     };
     static_assert(
-        sizeof(ISR_RegistersState) == 18 *
-        sizeof(ISR_RegistersState::isr_register_type_t),
+        sizeof(InterruptState) == 18 *
+        sizeof(InterruptState::register_type),
         "Invalid size of the interrupt routine structure"
     );
 
-    using ISRHandler = void(*)(ISR_RegistersState* registers);
+    using ISRHandler = void(*)(InterruptState* registers);
 
-    class ISR {
-    public:
-        void init();
+    void Init() noexcept;
 
-        void register_handler(std::uint8_t interrupt, ISRHandler handler) noexcept;
-        void unregister_handler(std::uint8_t interrupt) noexcept;
-        bool has_handler(std::uint8_t interrupt) const noexcept;
-
-        ISRHandler get_handler(std::uint8_t interrupt) const noexcept;
-
-        void operator()(std::uint8_t interrupt, ISR_RegistersState* regs) noexcept;
-    private:
-        static void default_handler(ISR_RegistersState* regs) noexcept;
-    private:
-        klibc::array<ISRHandler, Descriptors::INTERRUPT_COUNT> m_handlers;
-    };
-
-    extern ISR g_ISR;
+    void RegisterHandler(std::uint8_t interrupt, ISRHandler handler) noexcept;
+    void UnregisterHandler(std::uint8_t interrupt) noexcept;
 }

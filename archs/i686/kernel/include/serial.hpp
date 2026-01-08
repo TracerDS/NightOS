@@ -6,20 +6,19 @@
 #include <type_traits>
 #include <concepts>
 
-namespace Serial {
+namespace NOS::Serial {
+    using Port = std::uint16_t;
+    constexpr Port COM1 = 0x3F8;
+    constexpr Port COM2 = 0x2F8;
+    constexpr Port COM3 = 0x3E8;
+    constexpr Port COM4 = 0x2E8;
+    constexpr Port COM5 = 0x5F8;
+    constexpr Port COM6 = 0x4F8;
+    constexpr Port COM7 = 0x5E8;
+    constexpr Port COM8 = 0x4E8;
+
     class Serial {
     public:
-        using Port = std::uint16_t;
-
-        static constexpr Port COM1 = 0x3F8;
-        static constexpr Port COM2 = 0x2F8;
-        static constexpr Port COM3 = 0x3E8;
-        static constexpr Port COM4 = 0x2E8;
-        static constexpr Port COM5 = 0x5F8;
-        static constexpr Port COM6 = 0x4F8;
-        static constexpr Port COM7 = 0x5E8;
-        static constexpr Port COM8 = 0x4E8;
-        
         void init(Port port) noexcept;
 
         std::uint8_t read_byte(Port port) noexcept;

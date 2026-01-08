@@ -7,15 +7,14 @@
 
 #include <utility>
 
-namespace Serial {
-    extern "C" std::uint8_t __kernel_serial_read_byte__(Serial::Port port) noexcept;
-    extern "C" std::uint16_t __kernel_serial_read_word__(Serial::Port port) noexcept;
-    extern "C" std::uint32_t __kernel_serial_read_dword__(Serial::Port port) noexcept;
+namespace NOS::Serial {
+    extern "C" std::uint8_t __kernel_serial_read_byte__(Port port) noexcept;
+    extern "C" std::uint16_t __kernel_serial_read_word__(Port port) noexcept;
+    extern "C" std::uint32_t __kernel_serial_read_dword__(Port port) noexcept;
     
-    extern "C" void __kernel_serial_write_byte__(Serial::Port port, std::uint8_t data) noexcept;
-    extern "C" void __kernel_serial_write_word__(Serial::Port port, std::uint16_t data) noexcept;
-    extern "C" void __kernel_serial_write_dword__(Serial::Port port, std::uint32_t data) noexcept;
-
+    extern "C" void __kernel_serial_write_byte__(Port port, std::uint8_t data) noexcept;
+    extern "C" void __kernel_serial_write_word__(Port port, std::uint16_t data) noexcept;
+    extern "C" void __kernel_serial_write_dword__(Port port, std::uint32_t data) noexcept;
 
     // Interrupt enable register
     namespace IER {
@@ -105,27 +104,27 @@ namespace Serial {
 
     constexpr std::uint32_t DAUB_RATE = 115200; // Default baud rate
 
-    constexpr bool __serial_is_com__(Serial::Port port) noexcept {
+    constexpr bool __serial_is_com__(Port port) noexcept {
         switch(port) {
-            case Serial::COM1:
-            case Serial::COM2:
-            case Serial::COM3:
-            case Serial::COM4:
-            case Serial::COM5:
-            case Serial::COM6:
-            case Serial::COM7:
-            case Serial::COM8:
+            case COM1:
+            case COM2:
+            case COM3:
+            case COM4:
+            case COM5:
+            case COM6:
+            case COM7:
+            case COM8:
                 return true;
             default:
                 return false;
         }
     }
-    bool __serial_is_ready_to_read__(Serial::Port port) noexcept {
+    bool __serial_is_ready_to_read__(Port port) noexcept {
         auto read = __kernel_serial_read_byte__(port + 5);
         return Utils::Bits::IsBitMaskSet(read, LSR::DATA_READY);
     }
 
-    bool __serial_is_ready_to_write__(Serial::Port port) noexcept {
+    bool __serial_is_ready_to_write__(Port port) noexcept {
         auto read = __kernel_serial_read_byte__(port + 5);
         return Utils::Bits::IsBitMaskSet(read, LSR::TH_REGISTER_EMPTY);
     }
@@ -134,7 +133,7 @@ namespace Serial {
     static constexpr std::uint64_t __gs_max_wait_timeout__ = 10'0000;
 #endif
 
-    void __serial_wait_until_ready_to_read__(Serial::Port port) noexcept {
+    void __serial_wait_until_ready_to_read__(Port port) noexcept {
 #ifdef __NOS_SERIAL_DEBUG__
         static std::uint64_t __gs_timeout__ = 0;
 #endif
@@ -148,7 +147,7 @@ namespace Serial {
         __gs_timeout__ = 0;
     }
 
-    void __serial_wait_until_ready_to_write__(Serial::Port port) noexcept {
+    void __serial_wait_until_ready_to_write__(Port port) noexcept {
 #ifdef __NOS_SERIAL_DEBUG__
         static std::uint64_t __gs_timeout__ = 0;
 #endif

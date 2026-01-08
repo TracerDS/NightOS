@@ -5,35 +5,38 @@
 #include <utility>
 #include <limits>
 
-namespace Terminal {
-    Terminal g_Terminal{};
+namespace NOS::Terminal {
+    Terminal g_terminal{};
 
-    Terminal::Terminal() noexcept
-        : m_buffer(reinterpret_cast<std::uint16_t*>(0xB8000)), m_width(80), m_height(25) {
+    Terminal::Terminal() noexcept :
+        m_buffer(reinterpret_cast<std::uint16_t*>(0xB8000)),
+        m_width(80),
+        m_height(25)
+    {
         for (auto y = 0; y < m_height; ++y) {
             for (auto x = 0; x < m_width; ++x) {
-                WriteAt(' ', x, y);
+                write_at(' ', x, y);
             }
         }
     }
     
-    void Terminal::Scroll() noexcept {
+    void Terminal::scroll() noexcept {
         for (std::uint16_t y = 1; y < m_height; ++y) {
             for (std::uint16_t x = 0; x < m_width; ++x) {
                 m_buffer[(y - 1) * m_width + x] = m_buffer[y * m_width + x];
             }
         }
 
-        ClearRow(m_height - 1);
+        clear_row(m_height - 1);
     }
-    void Terminal::ClearRow(std::uint16_t row) noexcept {
+    void Terminal::clear_row(std::uint16_t row) noexcept {
         for (std::uint16_t x = 0; x < m_width; ++x) {
-            WriteAt(' ', x, row);
+            write_at(' ', x, row);
         }
     }
 
 
-    void Terminal::WriteAt (
+    void Terminal::write_at (
         char c,
         std::uint16_t x,
         std::uint16_t y,
@@ -59,12 +62,12 @@ namespace Terminal {
         m_buffer[index] = out;
     }
     
-    void Terminal::WriteChar (
+    void Terminal::write_char (
         char c,
         VGAColor foreground,
         VGAColor background
     ) noexcept {
-        WriteAt(c, m_cursorX, m_cursorY, foreground, background);
+        write_at(c, m_cursorX, m_cursorY, foreground, background);
 
         if (c == '\n') {
             ++m_cursorY;
@@ -74,7 +77,7 @@ namespace Terminal {
             if (m_cursorX > 0) {
                 --m_cursorX;
             }
-            WriteAt(' ', m_cursorX, m_cursorY, foreground, background);
+            write_at(' ', m_cursorX, m_cursorY, foreground, background);
         } else {
             ++m_cursorX;
         }
@@ -85,30 +88,30 @@ namespace Terminal {
         }
 
         if (m_cursorY >= m_height) {
-            Scroll();
+            scroll();
             m_cursorY = m_height - 1;
         }
     }
 
-    void Terminal::WriteString(
+    void Terminal::write_string(
         const char* const string,
         VGAColor foreground,
         VGAColor background
     ) noexcept {
         std::size_t stringLen = klibc::strlen(string);
         for (std::size_t i = 0; i < stringLen; ++i) {
-            WriteChar(string[i], foreground, background);
+            write_char(string[i], foreground, background);
         }
     }
 
-    void Terminal::WriteNumber (
+    void Terminal::write_number (
         std::uint64_t value,
         std::uint8_t base,
         VGAColor foreground,
         VGAColor background
     ) noexcept {
         if (value == 0) {
-            WriteChar('0', foreground, background);
+            write_char('0', foreground, background);
             return;
         }
         
@@ -117,7 +120,7 @@ namespace Terminal {
         }
 
         if (base == 16) {
-            WriteHex(value, false, foreground, background);
+            write_hex(value, false, foreground, background);
             return;
         }
 
@@ -129,32 +132,32 @@ namespace Terminal {
 
         while (divisor > 0) {
             std::uint8_t digit = value / divisor;
-            WriteChar(digit < 10 ? '0' + digit : 'A' + digit - 10, foreground, background);
+            write_char(digit < 10 ? '0' + digit : 'A' + digit - 10, foreground, background);
             value %= divisor;
             divisor /= base;
         }
     }
 
-    void Terminal::WriteNumber (
+    void Terminal::write_number (
         std::int64_t value,
         std::uint8_t base,
         VGAColor foreground,
         VGAColor background
     ) noexcept {
         if (value < 0) {
-            WriteChar('-', foreground, background);
+            write_char('-', foreground, background);
             if (value == std::numeric_limits<std::int64_t>::min()) {
                 // Handle the case of INT64_MIN separately
-                WriteNumber(std::numeric_limits<std::int64_t>::max() / base, base, foreground, background);
-                WriteNumber(std::numeric_limits<std::int64_t>::max() % base, base, foreground, background);
+                write_number(std::numeric_limits<std::int64_t>::max() / base, base, foreground, background);
+                write_number(std::numeric_limits<std::int64_t>::max() % base, base, foreground, background);
                 return;
             }
             value = -value;
         }
-        WriteNumber(static_cast<std::uint64_t>(value), base, foreground, background);
+        write_number(static_cast<std::uint64_t>(value), base, foreground, background);
     }
 
-    void Terminal::WriteFloat (
+    void Terminal::write_float (
         double value,
         int precision,
         VGAColor foreground,
@@ -164,34 +167,34 @@ namespace Terminal {
         constexpr auto EPSILON = limits::epsilon();
 
         if (value == limits::quiet_NaN()) { // Check for NaN
-            WriteString("NaN", foreground, background);
+            write_string("NaN", foreground, background);
             return;
         }
 
         if (value == -limits::infinity()) { // Check for -infinity
-            WriteString("-inf", foreground, background);
+            write_string("-inf", foreground, background);
             return;
         }
 
         if (value == limits::infinity()) { // Check for +infinity
-            WriteString("inf", foreground, background);
+            write_string("inf", foreground, background);
             return;
         }
 
         if (value < 0) {
-            WriteChar('-', foreground, background);
+            write_char('-', foreground, background);
             value = -value;
         }
 
         std::uint64_t integerPart = static_cast<std::uint64_t>(value);
-        WriteNumber(integerPart, 10, foreground, background);
+        write_number(integerPart, 10, foreground, background);
 
         double fraction = value - integerPart;
         if (fraction < EPSILON || precision <= 0) {
             return;
         }
 
-        WriteChar('.', foreground, background);
+        write_char('.', foreground, background);
 
         // Multiply and round to the nearest integer for the required precision
         double rounding = 0.5;
@@ -203,19 +206,19 @@ namespace Terminal {
         for (auto i = 0; i < precision; ++i) {
             fraction *= 10.0;
             auto digit = static_cast<std::uint8_t>(fraction);
-            WriteChar('0' + digit, foreground, background);
+            write_char('0' + digit, foreground, background);
             fraction -= digit;
         }
     }
 
-    void Terminal::WriteHex (
+    void Terminal::write_hex (
         std::uint64_t value,
         bool uppercase,
         VGAColor foreground,
         VGAColor background
     ) noexcept {
         if (value == 0) {
-            WriteChar('0', foreground, background);
+            write_char('0', foreground, background);
             return;
         }
 
@@ -230,7 +233,7 @@ namespace Terminal {
 
         // print digits in reverse
         for (auto i = idx - 1; i >= 0; --i) {
-            WriteChar(buf[i], foreground, background);
+            write_char(buf[i], foreground, background);
         }
     }
 }

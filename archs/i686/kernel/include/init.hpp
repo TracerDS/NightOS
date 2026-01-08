@@ -21,6 +21,7 @@ static_assert(sizeof(void*) == 4, "Kernel must be compiled for 32-bit architectu
 #   define FORCE_INLINE [[gnu::always_inline]] inline
 #   define NO_INLINE    [[gnu::noinline]]
 #   define PACKED       [[gnu::packed]]
+#   define ATTRIBUTE(x) [[gnu::x]]
 #else
 #   error "Unsupported compiler"
 #endif
@@ -30,7 +31,7 @@ static_assert(sizeof(void*) == 4, "Kernel must be compiled for 32-bit architectu
 #include <concepts>
 #include <cstdint>
 
-namespace Utils {
+namespace NOS::Utils {
     template <typename T>
     concept is_cstring = std::is_same_v<std::remove_cvref_t<std::remove_pointer_t<T>>, char>;
 
@@ -116,7 +117,7 @@ namespace Utils {
             );
         }
         FORCE_INLINE void KernelPanic() noexcept {
-            CallInterrupt<ISR::KernelInterrupts::KERNEL_PANIC>();
+            CallInterrupt<Interrupts::KernelInterrupts::KERNEL_PANIC>();
         }
     }
 

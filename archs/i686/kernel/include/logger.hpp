@@ -1,9 +1,9 @@
 #pragma once
 
-namespace Log {
-    class Logger {
-    public:
-        static void log(const char* message);
-        static void log(const char* fmt, ...);
-    };
+namespace NOS::Logger {
+    void Log(const char* message);
+    void Log(const char* fmt, ...);
+    
+    void LogError(const char* message);
+    void LogError(const char* fmt, ...);
 }

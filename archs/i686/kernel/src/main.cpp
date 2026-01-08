@@ -46,6 +46,9 @@ extern std::uint8_t __bss_end__[];
 extern std::uint8_t __kernel_start__[];
 extern std::uint8_t __kernel_end__[];
 
+namespace Serial = NOS::Serial;
+namespace ISR = NOS::Interrupts::ISR;
+
 void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info) noexcept {
 	// Check magic number
 	if (magic != MULTIBOOT_BOOTLOADER_MAGIC) {
@@ -68,17 +71,16 @@ void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info) noexcept {
 #endif
 
 	// Initialize terminal interface
+	Serial::g_serial.init(NOS::Serial::COM1);
+	Serial::g_serial.init(NOS::Serial::COM2);
 
-	//Serial::Initialize(Serial::Ports::COM1);
+	// Print stackframe
 	StackFrame::PrintFrames(3);
 
-	GDT::Init();
-	IDT::g_IDT.init();
-
-	ISR::g_ISR.init();
-	IRQ::IRQ_Init();
+	NOS::Descriptors::Init();
+	NOS::Interrupts::Init();
 	
-	ISR::g_ISR.register_handler(0x20, []([[maybe_unused]] ISR::ISR_RegistersState* regs) {
+	ISR::RegisterHandler(0x20, []([[maybe_unused]] ISR::InterruptState* regs) {
 		if (false) {
 			static int ticks = 0;
 			++ticks;
@@ -88,9 +90,9 @@ void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info) noexcept {
 			}
 		}
 	});
-	ISR::g_ISR.register_handler(
-		ISR::KernelInterrupts::KERNEL_PANIC,
-		[]([[maybe_unused]] ISR::ISR_RegistersState* regs) {
+	ISR::RegisterHandler(
+		NOS::Interrupts::KernelInterrupts::KERNEL_PANIC,
+		[]([[maybe_unused]] ISR::InterruptState* regs) {
 			IO::kprintf_color(
 				"Kernel Panic!\r\n"
 				"EIP: 0x%08lX\r\n"
@@ -111,16 +113,6 @@ void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info) noexcept {
 
 	// Reinitialize paging
 	//Paging::g_paging.init();
-
-	IO::kprintf("Initializing COM1...\r\n");
-	Serial::g_serial.init(Serial::Serial::COM1);
-	IO::kprintf("Initializing COM2...\r\n");
-	Serial::g_serial.init(Serial::Serial::COM2);
-
-	IO::kprintf("Writing to serial...\r\n");
-	Serial::g_serial.write_com1("NightOS Kernel Serial Initialized\r\n");
-	Serial::g_serial.write_com2("Sample data\r\nwritten to com2\r\n");
-	IO::kprintf("Done!\r\n");
 
 	asm("hlt");
 

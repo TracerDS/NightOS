@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace Descriptors {
+namespace NOS::Descriptors {
     enum PrivilegeType : std::uint8_t {
         PT_KERNEL       = 0b00, // Kernel mode
         PT_DRIVER       = 0b01, // kernel driver mode

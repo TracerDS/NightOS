@@ -14,8 +14,8 @@ namespace IO {
     ) noexcept;
 }
 
-namespace Log {
-    void Logger::log(const char* fmt, ...) {
+namespace NOS::Logger {
+    void Log(const char* fmt, ...) noexcept {
         va_list args;
         va_start(args, fmt);
         
@@ -25,10 +25,33 @@ namespace Log {
         va_end(args);
     }
 
-    void Logger::log(const char* message) {
+    void Log(const char* message) noexcept {
         Serial::g_serial.write_string(Serial::Serial::COM1, message);
         Serial::g_serial.write_string(Serial::Serial::COM1, "\r\n");
         
         IO::kprintf("%s", message); // Also print to the console
+    }
+    
+    void LogError(const char* fmt, ...) noexcept {
+        va_list args;
+        va_start(args, fmt);
+        
+        // Use kprintf to format the message
+        IO::__kprintf_core__(fmt, args, Terminal::Terminal::VGAColor::VGA_COLOR_LIGHT_RED);
+        
+        va_end(args);
+    }
+
+    void LogError(const char* message) noexcept {
+        Serial::g_serial.write_string(Serial::Serial::COM2, message);
+        Serial::g_serial.write_string(Serial::Serial::COM2, "\r\n");
+        
+        // Also print to the console
+        IO::kprintf_color(
+            "%s",
+            Terminal::Terminal::VGAColor::VGA_COLOR_LIGHT_RED,
+            Terminal::Terminal::VGAColor::VGA_COLOR_BLACK,
+            message
+        );
     }
 }

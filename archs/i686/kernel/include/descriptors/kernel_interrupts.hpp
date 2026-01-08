@@ -2,6 +2,6 @@
 
 #include <cstdint>
 
-namespace ISR::KernelInterrupts {
+namespace NOS::Interrupts::KernelInterrupts {
     constexpr std::uint8_t KERNEL_PANIC = 50;
 }

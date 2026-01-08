@@ -1,14 +1,15 @@
 #include <descriptors/idt.hpp>
 #include <descriptors/gdt.hpp>
 
-namespace IDT {
+namespace NOS::Interrupts::IDT {
     extern "C" bool __kernel_load_IDT__ (
-        const IDT::Descriptor* const descriptor
+        const Descriptor* const descriptor
     );
-
-    IDT g_IDT {};
     
-    void IDT::init() noexcept {
+    klibc::array<Entry, Descriptors::INTERRUPT_COUNT> m_entries;
+    Descriptor m_descriptor;
+    
+    void Init() noexcept {
         m_descriptor = {
             .limit = static_cast<std::uint16_t>(m_entries.size() - 1),
             .entries = m_entries.data()
@@ -16,13 +17,13 @@ namespace IDT {
         __kernel_load_IDT__(&m_descriptor);
     }
     
-    void IDT::set_entry (
+    void SetEntry (
         std::uint8_t interrupt,
         std::uint16_t segment,
         void* base,
         std::uint8_t flags
     ) noexcept {
-        auto baseAddr = reinterpret_cast<std::uint32_t>(base);
+        auto baseAddr = reinterpret_cast<std::uintptr_t>(base);
         m_entries[interrupt].base_lo = baseAddr & 0xFFFF;
         m_entries[interrupt].base_hi = (baseAddr >> 16) & 0xFFFF;
         m_entries[interrupt].segment = segment;
@@ -30,16 +31,16 @@ namespace IDT {
         m_entries[interrupt].flags = flags;
     }
 
-    void IDT::enable_entry(std::uint8_t interrupt) noexcept {
+    void EnableEntry(std::uint8_t interrupt) noexcept {
         Utils::Bits::SetBitMask(
             m_entries[interrupt].flags,
-            GDT::AccessType::AT_VALID_SEGMENT
+            Descriptors::GDT::AccessType::AT_VALID_SEGMENT
         );
     }
-    void IDT::disable_entry(std::uint8_t interrupt) noexcept {
+    void DisableEntry(std::uint8_t interrupt) noexcept {
         Utils::Bits::ClearBitMask(
             m_entries[interrupt].flags,
-            GDT::AccessType::AT_VALID_SEGMENT
+            Descriptors::GDT::AccessType::AT_VALID_SEGMENT
         );
     }
 }

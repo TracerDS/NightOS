@@ -6,7 +6,7 @@
 #include <cstddef>
 #include <concepts>
 
-namespace IO {
+namespace NOS::IO {
     namespace detail {
         constexpr std::uint16_t numDigits(std::integral auto number, std::uint8_t base = 10) noexcept
         {
@@ -37,12 +37,12 @@ namespace IO {
     void __kprintf_core__ (
         const char* format,
         va_list args,
-        Terminal::Terminal::VGAColor foreground,
-        Terminal::Terminal::VGAColor background
+        Terminal::VGAColor foreground,
+        Terminal::VGAColor background
     ) noexcept {
         while (*format) {
             if (*format != '%') {
-                Terminal::g_Terminal.WriteChar(*format++, foreground, background);
+                Terminal::g_terminal.write_char(*format++, foreground, background);
                 continue;
             }
             ++format;
@@ -51,7 +51,7 @@ namespace IO {
                 return;
             
             if (*format == '%') {
-                Terminal::g_Terminal.WriteChar('%', foreground, background);
+                Terminal::g_terminal.write_char('%', foreground, background);
                 ++format;
                 continue;
             }
@@ -163,13 +163,13 @@ namespace IO {
                     char c = static_cast<char>(va_arg(args, int));
                     if (!leftAlign && width > 1) {
                         for (int i = 1; i < width; ++i) {
-                            Terminal::g_Terminal.WriteChar(' ', foreground, background);
+                            Terminal::g_terminal.write_char(' ', foreground, background);
                         }
                     }
-                    Terminal::g_Terminal.WriteChar(c, foreground, background);
+                    Terminal::g_terminal.write_char(c, foreground, background);
                     if (leftAlign && width > 1) {
                         for (int i = 1; i < width; ++i) {
-                            Terminal::g_Terminal.WriteChar(' ', foreground, background);
+                            Terminal::g_terminal.write_char(' ', foreground, background);
                         }
                     }
                     break;
@@ -184,17 +184,17 @@ namespace IO {
                     while (str[len] && len < max_len) ++len;
                     if (!leftAlign && width > len) {
                         for (int i = 0; i < width - len; ++i) {
-                            Terminal::g_Terminal.WriteChar(' ', foreground, background);
+                            Terminal::g_terminal.write_char(' ', foreground, background);
                         }
                     }
 
                     for (int i = 0; i < len; ++i) {
-                        Terminal::g_Terminal.WriteChar(str[i], foreground, background);
+                        Terminal::g_terminal.write_char(str[i], foreground, background);
                     }
 
                     if (leftAlign && width > len) {
                         for (int i = 0; i < width - len; ++i) {
-                            Terminal::g_Terminal.WriteChar(' ', foreground, background);
+                            Terminal::g_terminal.write_char(' ', foreground, background);
                         }
                     }
 
@@ -217,11 +217,11 @@ namespace IO {
 
                     if (!leftAlign && width > 1) {
                         for (int i = 0; i < width - digitsCount; ++i) {
-                            Terminal::g_Terminal.WriteChar(' ', foreground, background);
+                            Terminal::g_terminal.write_char(' ', foreground, background);
                         }
                     }
 
-                    Terminal::g_Terminal.WriteNumber(
+                    Terminal::g_terminal.write_number(
                         num,
                         10,
                         foreground,
@@ -230,7 +230,7 @@ namespace IO {
 
                     if (leftAlign && width > 1) {
                         for (int i = 0; i < width - digitsCount; ++i) {
-                            Terminal::g_Terminal.WriteChar(' ', foreground, background);
+                            Terminal::g_terminal.write_char(' ', foreground, background);
                         }
                     }
                     break;
@@ -284,7 +284,7 @@ namespace IO {
                     
                     if (!leftAlign && width > 1) {
                         for (int i = 0; i < width - numWidth; ++i) {
-                            Terminal::g_Terminal.WriteChar(' ', foreground, background);
+                            Terminal::g_terminal.write_char(' ', foreground, background);
                         }
                     }
 
@@ -292,15 +292,15 @@ namespace IO {
 
                     if (zeroPad && width > 0) {
                         for (auto i = 0; i < width - digits; ++i) {
-                            Terminal::g_Terminal.WriteChar('0', foreground, background);
+                            Terminal::g_terminal.write_char('0', foreground, background);
                         }
                     }
 
-                    Terminal::g_Terminal.WriteNumber(num, 8, foreground, background);
+                    Terminal::g_terminal.write_number(num, 8, foreground, background);
                     
                     if (leftAlign && width > 1) {
                         for (int i = 0; i < width - numWidth; ++i) {
-                            Terminal::g_Terminal.WriteChar(' ', foreground, background);
+                            Terminal::g_terminal.write_char(' ', foreground, background);
                         }
                     }
                     break;
@@ -354,7 +354,7 @@ namespace IO {
                     numWidth *= 2; // Each hex digit takes 2 characters
                     if (!leftAlign && width > 1) {
                         for (auto i = 0; i < width - numWidth; ++i) {
-                            Terminal::g_Terminal.WriteChar(' ', foreground, background);
+                            Terminal::g_terminal.write_char(' ', foreground, background);
                         }
                     }
 
@@ -368,14 +368,14 @@ namespace IO {
                             --width;
                         }
                         for (auto i = 0; i < width - digits; ++i) {
-                            Terminal::g_Terminal.WriteChar('0', foreground, background);
+                            Terminal::g_terminal.write_char('0', foreground, background);
                         }
                     }
-                    Terminal::g_Terminal.WriteHex(num, (*format) == 'X', foreground, background);
+                    Terminal::g_terminal.write_hex(num, (*format) == 'X', foreground, background);
                     
                     if (leftAlign && width > 1) {
                         for (auto i = 0; i < width - numWidth; ++i) {
-                            Terminal::g_Terminal.WriteChar(' ', foreground, background);
+                            Terminal::g_terminal.write_char(' ', foreground, background);
                         }
                     }
                     break;
@@ -419,15 +419,15 @@ namespace IO {
                     auto numWidth = detail::numDigits(num);
                     if (!leftAlign && width > 1) {
                         for (auto i = 0; i < width - numWidth; ++i) {
-                            Terminal::g_Terminal.WriteChar(' ', foreground, background);
+                            Terminal::g_terminal.write_char(' ', foreground, background);
                         }
                     }
 
-                    Terminal::g_Terminal.WriteNumber(num, 10, foreground, background);
+                    Terminal::g_terminal.write_number(num, 10, foreground, background);
                     
                     if (leftAlign && width > 1) {
                         for (auto i = 0; i < width - numWidth; ++i) {
-                            Terminal::g_Terminal.WriteChar(' ', foreground, background);
+                            Terminal::g_terminal.write_char(' ', foreground, background);
                         }
                     }
                     break;
@@ -441,14 +441,14 @@ namespace IO {
                     }
 
                     if (plusSign) {
-                        Terminal::g_Terminal.WriteChar('+', foreground, background);
+                        Terminal::g_terminal.write_char('+', foreground, background);
                     } else if (spaceSign) {
-                        Terminal::g_Terminal.WriteChar(' ', foreground, background);
+                        Terminal::g_terminal.write_char(' ', foreground, background);
                     }
 
                     if (precision < 0) precision = 6;
 
-                    Terminal::g_Terminal.WriteFloat(num, precision, foreground, background);
+                    Terminal::g_terminal.write_float(num, precision, foreground, background);
                     break;
                 }
                 case 'p': {
@@ -456,16 +456,16 @@ namespace IO {
                     
                     if (!leftAlign && width > 1) {
                         for (int i = 1; i < width; ++i) {
-                            Terminal::g_Terminal.WriteChar(' ', foreground, background);
+                            Terminal::g_terminal.write_char(' ', foreground, background);
                         }
                     }
 
-                    Terminal::g_Terminal.WriteString("0x", foreground, background);
-                    Terminal::g_Terminal.WriteHex(data, false, foreground, background);
+                    Terminal::g_terminal.write_string("0x", foreground, background);
+                    Terminal::g_terminal.write_hex(data, false, foreground, background);
 
                     if (leftAlign && width > 1) {
                         for (int i = 1; i < width; ++i) {
-                            Terminal::g_Terminal.WriteChar(' ', foreground, background);
+                            Terminal::g_terminal.write_char(' ', foreground, background);
                         }
                     }
                     break;
@@ -478,8 +478,8 @@ namespace IO {
 
     void kprintf_color (
         const char* format,
-        Terminal::Terminal::VGAColor foreground,
-        Terminal::Terminal::VGAColor background,
+        Terminal::VGAColor foreground,
+        Terminal::VGAColor background,
         ...
     ) noexcept {
         va_list args;
@@ -502,8 +502,8 @@ namespace IO {
         __kprintf_core__(
             format,
             args,
-            Terminal::Terminal::VGAColor::VGA_COLOR_LIGHT_GRAY,
-            Terminal::Terminal::VGAColor::VGA_COLOR_BLACK
+            Terminal::VGAColor::VGA_COLOR_LIGHT_GRAY,
+            Terminal::VGAColor::VGA_COLOR_BLACK
         );
         
         va_end(args);
