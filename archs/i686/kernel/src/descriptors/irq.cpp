@@ -2,7 +2,7 @@
 #include <descriptors/idt.hpp>
 #include <descriptors/isr.hpp>
 
-#include <serial.hpp>
+#include <interfaces/streams/serial.hpp>
 #include <io.hpp>
 
 extern "C" void __kernel_serial_write_byte__(std::uint16_t port, std::uint8_t data);

@@ -9,7 +9,7 @@
 
 struct multiboot_info;
 
-namespace Memory {
+namespace NOS::Memory {
     class PhysicalMemoryAllocator {
     public:
         void init(struct multiboot_info* mb_info) noexcept;

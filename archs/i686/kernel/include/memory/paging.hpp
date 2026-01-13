@@ -3,7 +3,7 @@
 #include <init.hpp>
 #include <cstdint>
 
-namespace Paging {
+namespace NOS::Memory {
     namespace PageFlags {
         constexpr auto PAGE_PRESENT     = 1 << 0;
         constexpr auto PAGE_NOT_PRESENT = 0 << 0;

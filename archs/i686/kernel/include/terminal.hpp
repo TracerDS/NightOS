@@ -62,13 +62,6 @@ namespace NOS::Terminal {
         ) noexcept;
         
         void write_number (
-            std::uint64_t value,
-            std::uint8_t base = 10,
-            VGAColor foreground = VGAColor::VGA_COLOR_LIGHT_GRAY,
-            VGAColor background = VGAColor::VGA_COLOR_BLACK
-        ) noexcept;
-
-        void write_number (
             std::int64_t value,
             std::uint8_t base = 10,
             VGAColor foreground = VGAColor::VGA_COLOR_LIGHT_GRAY,
@@ -76,14 +69,19 @@ namespace NOS::Terminal {
         ) noexcept;
 
         void write_number (
+            std::uint64_t value,
+            std::uint8_t base = 10,
+            VGAColor foreground = VGAColor::VGA_COLOR_LIGHT_GRAY,
+            VGAColor background = VGAColor::VGA_COLOR_BLACK
+        ) noexcept;
+
+        void write_float (
             float value,
             int precision = -1,
             VGAColor foreground = VGAColor::VGA_COLOR_LIGHT_GRAY,
             VGAColor background = VGAColor::VGA_COLOR_BLACK
-        ) noexcept {
-            write_float(static_cast<double>(value), precision, foreground, background);
-        }
-
+        ) noexcept;
+        
         void write_float (
             double value,
             int precision = -1,

@@ -7,13 +7,14 @@
 #include <bit>
 
 namespace NOS::Descriptors {
+    extern "C" bool __kernel_load_GDT__(const GDT::Descriptor* const descriptor) noexcept;
+    extern "C" bool __kernel_load_TSS__(const std::uint16_t selector) noexcept;
+
     namespace TSS {
         Entry g_TSS {};
     }
 
     namespace GDT {
-        extern "C" bool __kernel_load_GDT__(const Descriptor* const descriptor) noexcept;
-        extern "C" bool __kernel_load_TSS__(const std::uint16_t selector) noexcept;
 
         constexpr Entry CreateEntry (
             const std::uintptr_t base,
@@ -95,25 +96,23 @@ namespace NOS::Descriptors {
             .limit = sizeof(g_GDT) - 1,
             .entry = &g_GDT[0]
         };
+    }
+    
+    void Init() noexcept {
+        // 2. Configure critical TSS fields
+        // SS0 is the Stack Segment for Ring 0. When an interrupt happens in Ring 3,
+        // the CPU switches to this segment. Must match Kernel Data Segment (0x10).
+        TSS::g_TSS.ss0 = GDT::g_dataSegmentOffset;
+        
+        // ESP0 needs to point to the top of the Kernel Stack. 
+        // For now, we leave it as 0 or set it to a boot stack if available.
+        // IMPORTANT: The Task Scheduler must update this field every time it switches tasks!
+        TSS::g_TSS.esp0 = 0;
 
-        void Init() noexcept {
-            // 2. Configure critical TSS fields
-            // SS0 is the Stack Segment for Ring 0. When an interrupt happens in Ring 3,
-            // the CPU switches to this segment. Must match Kernel Data Segment (0x10).
-            TSS::g_TSS.ss0 = g_dataSegmentOffset;
-            
-            // ESP0 needs to point to the top of the Kernel Stack. 
-            // For now, we leave it as 0 or set it to a boot stack if available.
-            // IMPORTANT: The Task Scheduler must update this field every time it switches tasks!
-            TSS::g_TSS.esp0 = 0;
+        // Disable I/O Permission Bitmap by pointing it outside the TSS limit
+        TSS::g_TSS.iomap = sizeof(GDT::Entry);
 
-            // Disable I/O Permission Bitmap by pointing it outside the TSS limit
-            TSS::g_TSS.iomap = sizeof(Entry);
-
-            __kernel_load_GDT__(&g_GDTDescriptor);
-            __kernel_load_TSS__(g_tssSegmentOffset);
-
-            
-        }
+        __kernel_load_GDT__(&GDT::g_GDTDescriptor);
+        __kernel_load_TSS__(GDT::g_tssSegmentOffset);            
     }
 }

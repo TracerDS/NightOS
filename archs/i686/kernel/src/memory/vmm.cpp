@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace Memory {
+namespace NOS::Memory {
     VirtualMemoryAllocator g_vmmAllocator{};
 
     class LinkedListAllocator {
@@ -28,7 +28,7 @@ namespace Memory {
 
     void LinkedListAllocator::Initialize(std::uintptr_t startPhysAddr, std::size_t size) noexcept {
         // Assume we are mapped in already
-        auto pagesNeeded = Utils::align_up(size, Paging::ByteUnits::KB4) / Paging::ByteUnits::KB4;
+        auto pagesNeeded = Utils::align_up(size, ByteUnits::KB4) / ByteUnits::KB4;
     
 #ifdef __KERNEL_DEBUG__
         IO::kprintf("VMM: Initializing with %08lX bytes (%lu pages)\r\n",
@@ -44,18 +44,18 @@ namespace Memory {
                 // No memory. Panic
                 IO::kprintf_color(
                     "VMM: Out of memory during initialization!\r\n",
-                    Terminal::Terminal::VGAColor::VGA_COLOR_LIGHT_RED,
-                    Terminal::Terminal::VGAColor::VGA_COLOR_BLACK
+                    Terminal::VGAColor::VGA_COLOR_LIGHT_RED,
+                    Terminal::VGAColor::VGA_COLOR_BLACK
                 );
                 Utils::Asm::KernelPanic();
                 return;
             }
 
             // Map it
-            Paging::g_paging.map_page(
+            g_paging.map_page(
                 reinterpret_cast<std::uintptr_t>(physAddr.data()), 
-                startPhysAddr + (i * Paging::ByteUnits::KB4), 
-                Paging::PageFlags::PAGE_PRESENT | Paging::PageFlags::PAGE_READ_WRITE
+                startPhysAddr + (i * ByteUnits::KB4), 
+                PageFlags::PAGE_PRESENT | PageFlags::PAGE_READ_WRITE
             );
         }
 
@@ -142,20 +142,20 @@ namespace Memory {
 }
 
 void* operator new(std::size_t size) noexcept {
-    return Memory::g_vmmAllocator.allocate(size);
+    return NOS::Memory::g_vmmAllocator.allocate(size);
 }
 void* operator new[](std::size_t size) noexcept {
-    return Memory::g_vmmAllocator.allocate(size);
+    return NOS::Memory::g_vmmAllocator.allocate(size);
 }
 void operator delete(void* ptr) noexcept {
-    Memory::g_vmmAllocator.free(ptr);
+    NOS::Memory::g_vmmAllocator.free(ptr);
 }
 void operator delete(void* ptr, [[maybe_unused]] std::size_t size) noexcept {
-    Memory::g_vmmAllocator.free(ptr);
+    NOS::Memory::g_vmmAllocator.free(ptr);
 }
 void operator delete[](void* ptr) noexcept {
-    Memory::g_vmmAllocator.free(ptr);
+    NOS::Memory::g_vmmAllocator.free(ptr);
 }
 void operator delete[](void* ptr, [[maybe_unused]] std::size_t size) noexcept {
-    Memory::g_vmmAllocator.free(ptr);
+    NOS::Memory::g_vmmAllocator.free(ptr);
 }

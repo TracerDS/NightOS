@@ -1,4 +1,4 @@
-#include <serial.hpp>
+#include <interfaces/streams/serial.hpp>
 #include <io.hpp>
 
 #ifdef __NOS_SERIAL_DEBUG__

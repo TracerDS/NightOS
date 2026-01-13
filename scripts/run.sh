@@ -22,8 +22,10 @@ fi
 >"$SCRIPT_DIR/../logs/qemu.log"
 
 qemu-system-i386 \
+    $args \
     -m 4G \
-    -vga virtio -cdrom $target $args \
+    -vga virtio \
+    -cdrom $target \
     -D "$SCRIPT_DIR/../logs/qemu.log" \
     -d int,cpu_reset \
     -monitor stdio \

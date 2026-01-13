@@ -14,7 +14,7 @@
 #include <memory/vmm.hpp>
 #include <logger.hpp>
 #include <io.hpp>
-#include <serial.hpp>
+#include <interfaces/streams/serial.hpp>
 #include <cpuid.hpp>
 #include <stackframe.hpp>
 #include <keyboard.hpp>
@@ -48,6 +48,9 @@ extern std::uint8_t __kernel_end__[];
 
 namespace Serial = NOS::Serial;
 namespace ISR = NOS::Interrupts::ISR;
+namespace IO = NOS::IO;
+
+using NOS::Terminal::VGAColor;
 
 void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info) noexcept {
 	// Check magic number
@@ -75,11 +78,11 @@ void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info) noexcept {
 	Serial::g_serial.init(NOS::Serial::COM2);
 
 	// Print stackframe
-	StackFrame::PrintFrames(3);
+	NOS::StackFrame::PrintFrames(3);
 
 	NOS::Descriptors::Init();
 	NOS::Interrupts::Init();
-	
+
 	ISR::RegisterHandler(0x20, []([[maybe_unused]] ISR::InterruptState* regs) {
 		if (false) {
 			static int ticks = 0;
@@ -98,8 +101,8 @@ void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info) noexcept {
 				"EIP: 0x%08lX\r\n"
 				"Error: %ld\r\n"
 				"Halting system...\r\n",
-				Terminal::Terminal::VGAColor::VGA_COLOR_LIGHT_RED,
-				Terminal::Terminal::VGAColor::VGA_COLOR_BLACK,
+				VGAColor::VGA_COLOR_LIGHT_RED,
+				VGAColor::VGA_COLOR_BLACK,
 				regs->eip,
 				regs->error
 			);
@@ -112,29 +115,27 @@ void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info) noexcept {
 	);
 
 	// Reinitialize paging
-	//Paging::g_paging.init();
-
-	asm("hlt");
+	NOS::Memory::g_paging.init();
 
 	// Paging enabled, set to our page directory in src/paging.cpp
-	Memory::g_pmmAllocator.init(mb_info);
+	NOS::Memory::g_pmmAllocator.init(mb_info);
 	
 	IO::kprintf(
 		"Kernel loaded at: 0x%08lX - 0x%08lX\r\n",
 		reinterpret_cast<std::uintptr_t>(__kernel_start__),
 		reinterpret_cast<std::uintptr_t>(__kernel_end__)
 	);
-	auto addr = Memory::g_pmmAllocator.request_pages(1);
+	auto addr = NOS::Memory::g_pmmAllocator.request_pages(1);
 	IO::kprintf("Allocated page at: 0x%X\r\n", (unsigned int)addr.data());
 
 	for(int i=0; i<4096 / 4; ++i) {
 		((std::uint32_t*)addr.data())[i] = 0xDEADBEEF;
 	}
-	Memory::g_pmmAllocator.free_pages(addr);
+	NOS::Memory::g_pmmAllocator.free_pages(addr);
 
 	int* ptr = new int(42);
 	if (!ptr) {
-		Utils::Asm::KernelPanic();
+		NOS::Utils::Asm::KernelPanic();
 	}
 
 	IO::kprintf("Dynamically allocated integer at: 0x%08lX with value %d\r\n", (uintptr_t)ptr, *ptr);
@@ -144,7 +145,7 @@ void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info) noexcept {
 
 	IO::kprintf_color(
 		"Hello\nKernel\nWorld\r\n",
-		Terminal::Terminal::VGAColor::VGA_COLOR_LIGHT_MAGENTA
+		VGAColor::VGA_COLOR_LIGHT_MAGENTA
 	);
 	IO::kprintf("__cplusplus: %ld\r\n", __cplusplus);
 	IO::kprintf("CPUID supported: %s\r\n", __kernel_check_cpuid__() ? "true" : "false");
@@ -159,7 +160,7 @@ void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info) noexcept {
 	IO::kprintf("Data: %X\r\n", *(std::uint8_t*)(0x70400 + 0xC0000000) );
 
 	if (true) {
-		ISR::g_ISR.register_handler(0x21, []([[maybe_unused]] ISR::ISR_RegistersState* regs) {
+		ISR::RegisterHandler(0x21, []([[maybe_unused]] ISR::InterruptState* regs) {
 			static bool pressed = false;
 			static std::uint8_t prevCode = 0;
 			

@@ -14,4 +14,13 @@ namespace NOS::IO {
         Terminal::VGAColor background = Terminal::VGAColor::VGA_COLOR_BLACK,
         ...
     ) noexcept;
+
+    void kvprintf(const char* format, va_list args) noexcept;
+
+    void kvprintf_color (
+        const char* format,
+        va_list args,
+        Terminal::VGAColor foreground = Terminal::VGAColor::VGA_COLOR_LIGHT_GRAY,
+        Terminal::VGAColor background = Terminal::VGAColor::VGA_COLOR_BLACK
+    ) noexcept;
 }

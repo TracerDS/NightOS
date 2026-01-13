@@ -1,6 +1,7 @@
 #include <terminal.hpp>
 #include <klibc/cstring>
 #include <klibc/cctype>
+
 #include <cstdint>
 #include <utility>
 #include <limits>
@@ -54,8 +55,8 @@ namespace NOS::Terminal {
 
         const std::uint16_t index = y * m_width + x;
 
-        auto fg = std::to_underlying<Terminal::VGAColor>(foreground);
-        auto bg = std::to_underlying<Terminal::VGAColor>(background);
+        auto fg = std::to_underlying(foreground);
+        auto bg = std::to_underlying(background);
         std::uint8_t color = (bg << 4) | fg;
 
         std::uint16_t out = (color << 8) | c;
@@ -105,6 +106,32 @@ namespace NOS::Terminal {
     }
 
     void Terminal::write_number (
+        std::int64_t value,
+        std::uint8_t base,
+        VGAColor foreground,
+        VGAColor background
+    ) noexcept {
+        using value_type = std::decay_t<decltype(value)>;
+
+        // Default to base 10 if invalid
+        if (base != 2 && base != 8 && base != 10 && base != 16) {
+            base = 10; // Default to base 10 if invalid
+        }
+
+        if (value < 0) {
+            write_char('-', foreground, background);
+            if (value == std::numeric_limits<std::int64_t>::min()) {
+                // Handle the case of INT64_MIN separately
+                write_number(std::numeric_limits<std::int64_t>::max() / base, base, foreground, background);
+                write_number(std::numeric_limits<std::int64_t>::max() % base, base, foreground, background);
+                return;
+            }
+            value = -value;
+        }
+        write_number(std::make_unsigned_t<value_type>(value), base, foreground, background);
+    }
+
+    void Terminal::write_number (
         std::uint64_t value,
         std::uint8_t base,
         VGAColor foreground,
@@ -115,8 +142,9 @@ namespace NOS::Terminal {
             return;
         }
         
+        // Default to base 10 if invalid
         if (base != 2 && base != 8 && base != 10 && base != 16) {
-            base = 10; // Default to base 10 if invalid
+            base = 10;
         }
 
         if (base == 16) {
@@ -138,23 +166,13 @@ namespace NOS::Terminal {
         }
     }
 
-    void Terminal::write_number (
-        std::int64_t value,
-        std::uint8_t base,
+    void Terminal::write_float (
+        float value,
+        int precision,
         VGAColor foreground,
         VGAColor background
     ) noexcept {
-        if (value < 0) {
-            write_char('-', foreground, background);
-            if (value == std::numeric_limits<std::int64_t>::min()) {
-                // Handle the case of INT64_MIN separately
-                write_number(std::numeric_limits<std::int64_t>::max() / base, base, foreground, background);
-                write_number(std::numeric_limits<std::int64_t>::max() % base, base, foreground, background);
-                return;
-            }
-            value = -value;
-        }
-        write_number(static_cast<std::uint64_t>(value), base, foreground, background);
+        Terminal::write_float(static_cast<double>(value), precision, foreground, background);
     }
 
     void Terminal::write_float (
@@ -163,7 +181,9 @@ namespace NOS::Terminal {
         VGAColor foreground,
         VGAColor background
     ) noexcept {
-        using limits = std::numeric_limits<double>;
+        using value_type = std::decay_t<decltype(value)>;
+
+        using limits = std::numeric_limits<value_type>;
         constexpr auto EPSILON = limits::epsilon();
 
         if (value == limits::quiet_NaN()) { // Check for NaN

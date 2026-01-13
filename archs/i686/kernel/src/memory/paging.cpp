@@ -1,17 +1,18 @@
 #include <memory/paging.hpp>
 #include <memory/pmm.hpp>
 #include <io.hpp>
+#include <logger.hpp>
 
 #include <cstdint>
 #include <utility>
 #include <type_traits>
 
-namespace Paging {
-    extern "C" void __kernel_load_page_directory__(const std::uintptr_t* const addr) noexcept;
+namespace NOS::Memory {
+    extern "C" void __kernel_load_page_directory__(std::uintptr_t addr) noexcept;
     extern "C" void __kernel_enable_paging__() noexcept;
     extern "C" void __kernel_disable_paging__() noexcept;
     extern "C" void __kernel_paging_enable_pse__() noexcept;
-    extern "C" void __kernel_flush_tlb_entry__(const void* const addr) noexcept;
+    extern "C" void __kernel_flush_tlb_entry__(uintptr_t addr) noexcept;
     extern "C" void __kernel_flush_tlb_all__() noexcept;
 
     extern "C" std::uint8_t __kernel_post_boot_start__[];
@@ -24,6 +25,7 @@ namespace Paging {
         constexpr auto DEFAULT_FLAGS = PageFlags::PAGE_PRESENT |
             PageFlags::PAGE_READ_WRITE | PageFlags::PAGE_SIZE_ENABLE;
 
+        Logger::Log("[IPS] Enabling PSE...\r\n");
         __kernel_paging_enable_pse__();
 
         // Reset paging structures (BSS is typically zeroed, but keep this explicit)
@@ -43,11 +45,20 @@ namespace Paging {
         auto kernel_start_phys_aligned = Utils::align_down(kernel_start_phys, ByteUnits::MB4);
         auto kernel_start_virt_aligned = Utils::align_down(kernel_start_int, ByteUnits::MB4);
         auto kernel_end_phys_aligned = Utils::align_up(kernel_end_phys, ByteUnits::MB4);
+        auto kernel_end_virt_aligned = Utils::align_up(kernel_end_int, ByteUnits::MB4);
 
         auto kernel_pages = (kernel_end_phys_aligned - kernel_start_phys_aligned) / ByteUnits::MB4;
 
+        Logger::Log("[IPS] Identity mapping 0x%08lX - 0x%08lX...\r\n",
+            0x0, ByteUnits::MB4
+        );
         // Identity map the first 4MBs
         map_page(0x0, 0x0, DEFAULT_FLAGS);
+
+        Logger::Log("[IPS] Mapping kernel pages (0x%08lX - 0x%08lX)...\r\n",
+            reinterpret_cast<uintptr_t>(kernel_start_virt_aligned),
+            reinterpret_cast<uintptr_t>(kernel_end_virt_aligned)
+        );
 
         // Map the kernel pages
         for (std::size_t i = 0; i < kernel_pages; ++i) {
@@ -75,9 +86,11 @@ namespace Paging {
         m_pageDirectory[1023] = (pageDirPhys & 0xFFFFF000) |
             PageFlags::PAGE_PRESENT | PageFlags::PAGE_READ_WRITE;
 
-        __kernel_load_page_directory__(reinterpret_cast<std::uintptr_t*>(pageDirPhys));
+        Logger::Log("[IPS] Loading paging directory (0x%08lX)...\r\n", pageDirPhys);
+        __kernel_load_page_directory__(pageDirPhys);
         __kernel_enable_paging__();
         __kernel_flush_tlb_all__();
+        Logger::Log("[IPS] Paging initialized!\r\n");
     }
 
     void Paging::map_page(
@@ -95,9 +108,7 @@ namespace Paging {
             // Large pages require 4MB alignment.
             m_pageDirectory[pageDirIndex] = (physAddr & 0xFFC00000) | flags;
 
-            __kernel_flush_tlb_entry__(
-                reinterpret_cast<const void*>(virtualAddr)
-            );
+            __kernel_flush_tlb_entry__(virtualAddr);
             return;
         }
 
@@ -124,21 +135,26 @@ namespace Paging {
                 return;
             }
 
+            IO::kprintf(
+                "Paging: Created new page table for virtual address 0x%08lX at phys 0x%08lX\r\n",
+                virtualAddr,
+                reinterpret_cast<std::uintptr_t>(newTablePhys.data())
+            );
+
             auto* tablePtr = reinterpret_cast<std::uintptr_t*>(newTablePhys.data());
-            for (auto i = 0; i < 1024; ++i)
-                tablePtr[i] = 0;
             
             m_pageDirectory[pageDirIndex] =
-                reinterpret_cast<std::uintptr_t>(newTablePhys.data()) | 
+                reinterpret_cast<std::uintptr_t>(tablePtr) | 
                     PageFlags::PAGE_PRESENT | PageFlags::PAGE_READ_WRITE;
 
+            __kernel_flush_tlb_entry__(virtualAddr);
             pageTable = tablePtr;
         }
 
         pageTable[pageTableIndex] = (physAddr & 0xFFFFF000) | flags;
 
         // Invalidate TLB
-        __kernel_flush_tlb_entry__(reinterpret_cast<const void*>(virtualAddr));
+        __kernel_flush_tlb_entry__(virtualAddr);
     }
 
     void Paging::unmap_page(std::uintptr_t virtualAddr) noexcept {
@@ -163,6 +179,6 @@ namespace Paging {
             pageTable[pageTableIndex] = 0;
         }
 
-        __kernel_flush_tlb_entry__(reinterpret_cast<void*>(virtualAddr));
+        __kernel_flush_tlb_entry__(virtualAddr);
     }
 }

@@ -3,7 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace Memory {
+namespace NOS::Memory {
     class VirtualMemoryAllocator {
     public:
         void init(std::uintptr_t startVirtAddr, std::size_t size) noexcept;

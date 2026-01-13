@@ -11,7 +11,7 @@
 extern std::uint8_t __kernel_start__[];
 extern std::uint8_t __kernel_end__[];
 
-namespace Memory {
+namespace NOS::Memory {
     PhysicalMemoryAllocator g_pmmAllocator{};
 
     auto remap_memory_sections(multiboot_info* mb_info) noexcept {
@@ -96,7 +96,9 @@ namespace Memory {
             memend
         );
 #endif
-        Memory::g_pmmAllocator.mark_page_range(
+        mark_page(0x0, true); // Mark null page as used
+
+        mark_page_range(
             reinterpret_cast<std::uintptr_t>(__kernel_start__),
             reinterpret_cast<std::uintptr_t>(__kernel_end__),
             true
@@ -106,7 +108,7 @@ namespace Memory {
     }
 
     void PhysicalMemoryAllocator::mark_page(std::uintptr_t addr, bool used) noexcept {
-        std::uint64_t index = addr / Paging::ByteUnits::KB4;
+        std::uint64_t index = addr / ByteUnits::KB4;
         std::uint64_t byte_index = index / 8;
         std::uint8_t bit_index = index % 8;
 
@@ -127,12 +129,12 @@ namespace Memory {
         std::uintptr_t end,
         bool used
     ) noexcept {
-        std::uintptr_t addr = Utils::align_down(start, Paging::ByteUnits::KB4);
-        std::uintptr_t end_addr = Utils::align_up(end, Paging::ByteUnits::KB4);
+        std::uintptr_t addr = Utils::align_down(start, ByteUnits::KB4);
+        std::uintptr_t end_addr = Utils::align_up(end, ByteUnits::KB4);
 
         while (addr < end_addr) {
             mark_page(addr, used);
-            addr += Paging::ByteUnits::KB4;
+            addr += ByteUnits::KB4;
         }
     }
 
@@ -180,7 +182,7 @@ namespace Memory {
                 }
 
                 return {
-                    reinterpret_cast<void*>(i * Paging::ByteUnits::KB4),
+                    reinterpret_cast<void*>(i * ByteUnits::KB4),
                     pages
                 };
             }
@@ -195,12 +197,12 @@ namespace Memory {
 
         std::uintptr_t address = reinterpret_cast<std::uintptr_t>(addr.data());
         // Ensure the address is page-aligned
-        if (address % Paging::ByteUnits::KB4 != 0) {
+        if (address % ByteUnits::KB4 != 0) {
             return;
         }
 
         for (std::size_t i = 0; i < addr.size(); ++i) {
-            mark_page(address + i * Paging::ByteUnits::KB4, false);
+            mark_page(address + i * ByteUnits::KB4, false);
         }
     }
 }

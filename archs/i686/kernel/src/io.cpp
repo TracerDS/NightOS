@@ -1,4 +1,6 @@
 #include <io.hpp>
+#include <terminal.hpp>
+
 #include <cstdarg>
 #include <bit>
 #include <limits>
@@ -32,9 +34,47 @@ namespace NOS::IO {
             }
             return digits;
         }
+    }    
+    
+
+    void kprintf(const char* format, ...) noexcept {        
+        va_list args;
+        va_start(args, format);
+
+        kvprintf(format, args);
+        
+        va_end(args);
     }
 
-    void __kprintf_core__ (
+    void kprintf_color (
+        const char* format,
+        Terminal::VGAColor foreground,
+        Terminal::VGAColor background,
+        ...
+    ) noexcept {
+        va_list args;
+        va_start(args, background);
+
+        kvprintf_color(
+            format,
+            args,
+            foreground,
+            background
+        );
+        
+        va_end(args);
+    }
+    
+    void kvprintf(const char* format, va_list args) noexcept {
+        kvprintf_color(
+            format,
+            args,
+            Terminal::VGAColor::VGA_COLOR_LIGHT_GRAY,
+            Terminal::VGAColor::VGA_COLOR_BLACK
+        );
+    }
+
+    void kvprintf_color (
         const char* format,
         va_list args,
         Terminal::VGAColor foreground,
@@ -474,38 +514,5 @@ namespace NOS::IO {
 
             ++format;
         }
-    }
-
-    void kprintf_color (
-        const char* format,
-        Terminal::VGAColor foreground,
-        Terminal::VGAColor background,
-        ...
-    ) noexcept {
-        va_list args;
-        va_start(args, background);
-
-        __kprintf_core__(
-            format,
-            args,
-            foreground,
-            background
-        );
-        
-        va_end(args);
-    }
-
-    void kprintf(const char* format, ...) noexcept {
-        va_list args;
-        va_start(args, format);
-
-        __kprintf_core__(
-            format,
-            args,
-            Terminal::VGAColor::VGA_COLOR_LIGHT_GRAY,
-            Terminal::VGAColor::VGA_COLOR_BLACK
-        );
-        
-        va_end(args);
     }
 }
