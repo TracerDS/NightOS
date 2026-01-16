@@ -98,13 +98,17 @@ namespace NOS::Memory {
 #endif
         mark_page(0x0, true); // Mark null page as used
 
+        // Mark kernel pages as used
         mark_page_range(
             reinterpret_cast<std::uintptr_t>(__kernel_start__),
             reinterpret_cast<std::uintptr_t>(__kernel_end__),
             true
         );
 
-	    Memory::g_vmmAllocator.init(memstart, memend - memstart);
+	    Memory::g_vmmAllocator.init(
+            VirtualMemoryAllocator::HEAP_VIRTUAL_START,
+            memend - memstart
+        );
     }
 
     void PhysicalMemoryAllocator::mark_page(std::uintptr_t addr, bool used) noexcept {
@@ -195,7 +199,7 @@ namespace NOS::Memory {
             return;
         }
 
-        std::uintptr_t address = reinterpret_cast<std::uintptr_t>(addr.data());
+        std::uintptr_t address = addr.ToAddress();
         // Ensure the address is page-aligned
         if (address % ByteUnits::KB4 != 0) {
             return;

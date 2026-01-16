@@ -36,24 +36,22 @@ namespace NOS::Memory {
             pagesNeeded
         );
 #endif
+        auto physAddr = g_pmmAllocator.request_pages(pagesNeeded);
+        if (!physAddr) {
+            // No memory. Panic
+            IO::kprintf_color(
+                "VMM: Out of memory during initialization!\r\n",
+                Terminal::VGAColor::VGA_COLOR_LIGHT_RED,
+                Terminal::VGAColor::VGA_COLOR_BLACK
+            );
+            Utils::Asm::KernelPanic();
+            return;
+        }
 
-        for (std::size_t i = 0; i < pagesNeeded; ++i) {
-            // Get the physical page
-            auto physAddr = g_pmmAllocator.request_pages(1);
-            if (!physAddr) {
-                // No memory. Panic
-                IO::kprintf_color(
-                    "VMM: Out of memory during initialization!\r\n",
-                    Terminal::VGAColor::VGA_COLOR_LIGHT_RED,
-                    Terminal::VGAColor::VGA_COLOR_BLACK
-                );
-                Utils::Asm::KernelPanic();
-                return;
-            }
-
+        for(std::size_t i = 0; i < physAddr.size(); ++i) {
             // Map it
             g_paging.map_page(
-                reinterpret_cast<std::uintptr_t>(physAddr.data()), 
+                physAddr.ToAddress() + (i * ByteUnits::KB4),
                 startPhysAddr + (i * ByteUnits::KB4), 
                 PageFlags::PAGE_PRESENT | PageFlags::PAGE_READ_WRITE
             );

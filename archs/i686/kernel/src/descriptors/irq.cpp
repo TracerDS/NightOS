@@ -63,8 +63,8 @@ namespace NOS::Interrupts {
         }
     }
     void Init() noexcept {
+        ISR::Init();
         IDT::Init();
         IRQ::Init();
-        ISR::Init();
     }
 }

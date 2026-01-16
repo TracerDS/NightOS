@@ -150,6 +150,17 @@ namespace NOS::Utils {
         }
         constexpr operator pointer() noexcept { return data(); }
         constexpr operator const_pointer() const noexcept { return data(); }
+
+        constexpr std::uintptr_t ToAddress() const noexcept
+            requires std::is_same_v<value_type, void>
+        {
+            return reinterpret_cast<std::uintptr_t>(m_data);
+        }
+        constexpr operator std::uintptr_t() const noexcept
+            requires std::is_same_v<value_type, void>
+        {
+            return ToAddress();
+        }
     protected:
         pointer m_data;
         std::size_t m_size;

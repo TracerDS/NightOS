@@ -125,13 +125,6 @@ void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info) noexcept {
 		reinterpret_cast<std::uintptr_t>(__kernel_start__),
 		reinterpret_cast<std::uintptr_t>(__kernel_end__)
 	);
-	auto addr = NOS::Memory::g_pmmAllocator.request_pages(1);
-	IO::kprintf("Allocated page at: 0x%X\r\n", (unsigned int)addr.data());
-
-	for(int i=0; i<4096 / 4; ++i) {
-		((std::uint32_t*)addr.data())[i] = 0xDEADBEEF;
-	}
-	NOS::Memory::g_pmmAllocator.free_pages(addr);
 
 	int* ptr = new int(42);
 	if (!ptr) {

@@ -335,4 +335,11 @@ ISR_NoError 253
 ISR_NoError 254
 ISR_NoError 255
 
-__isr_stubs_end__:
+section .rodata
+global __isr_stub_table__
+__isr_stub_table__:
+    %assign i 0
+    %rep 256
+        dd ISR%+i
+        %assign i i+1
+    %endrep

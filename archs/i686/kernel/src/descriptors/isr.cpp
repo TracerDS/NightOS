@@ -23,6 +23,8 @@ namespace NOS {
         extern "C" std::uint8_t __isr_stubs_start__[];
         extern "C" std::uint8_t __isr_stubs_end__[];
 
+        extern "C" void* __isr_stub_table__[];
+
         constexpr bool __isr_is_error__(std::uint8_t interrupt) noexcept {
             switch (interrupt) {
                 case 8:
@@ -216,19 +218,16 @@ namespace NOS {
                 std::to_underlying(IDT::GateType::GATE_INT32) |
                 std::to_underlying(Descriptors::PrivilegeType::PT_KERNEL);
 
-            std::size_t offset = 0;
-
+            IO::kprintf("ISR 50 stub address: 0x%08lX\r\n", (uintptr_t)__isr_stub_table__[50]);
             for (std::size_t i = 0; i < 256; ++i) {
                 IDT::SetEntry(
                     i,
                     Descriptors::GDT::g_codeSegmentOffset,
-                    static_cast<void*>(__isr_stubs_start__ + offset),
+                    __isr_stub_table__[i],
                     commonFlags
                 );
 
                 IDT::EnableEntry(i);
-
-                offset += __isr_get_alignment__(i);
             }
         }
     }
