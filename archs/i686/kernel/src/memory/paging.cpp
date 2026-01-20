@@ -120,8 +120,8 @@ namespace NOS::Memory {
             Utils::Bits::IsBitMaskSet(pageDirEntry, PageFlags::PAGE_PRESENT) && 
             Utils::Bits::IsBitMaskSet(pageDirEntry, PageFlags::PAGE_SIZE_ENABLE)
         ) {
-            IO::kprintf(
-                "PANIC: Trying to map 4KB page at 0x%08lX but 4MB page already exists!\r\n",
+            Logger::LogError(
+                "[Paging]: Trying to map 4KB page at 0x%08lX but 4MB page already exists!\r\n",
                 virtualAddr
             );
             Utils::Asm::KernelPanic();
@@ -137,22 +137,14 @@ namespace NOS::Memory {
             if (!newTablePhys) {
                 // Out of memory. PANIC
 #ifdef __KERNEL_DEBUG__
-                IO::kprintf(
-                    "PANIC: Out of memory while mapping address %08lX to %08lX\r\n",
+                Logger::LogError(
+                    "[Paging] PANIC: Out of memory while mapping address %08lX to %08lX\r\n",
                     physAddr, virtualAddr
                 );
 #endif
                 Utils::Asm::KernelPanic();
                 return;
             }
-
-#ifdef __KERNEL_DEBUG__
-            IO::kprintf(
-                "[Paging] Created new page table for virtual address 0x%08lX at phys 0x%08lX\r\n",
-                virtualAddr,
-                newTablePhys.ToAddress()
-            );
-#endif
 
             m_pageDirectory[pageDirIndex] = newTablePhys.ToAddress() |
                 PageFlags::PAGE_PRESENT | PageFlags::PAGE_READ_WRITE;

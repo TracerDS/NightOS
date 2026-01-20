@@ -17,6 +17,12 @@ static_assert(sizeof(void*) == 4, "Kernel must be compiled for 32-bit architectu
 #   define __NOS_SERIAL_DEBUG__
 #endif
 
+#ifdef __clang__
+#   define __KERNEL_COMPILER_CLANG__
+#elif defined(__GNUC__) || defined(__GNUG__)
+#   define __KERNEL_COMPILER_GCC__
+#endif
+
 #if defined(__clang__) || defined(__GNUC__) || defined(__GNUG__)
 #   define FORCE_INLINE [[gnu::always_inline]] inline
 #   define NO_INLINE    [[gnu::noinline]]

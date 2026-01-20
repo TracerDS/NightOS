@@ -3,11 +3,11 @@
 extern "C" {
 #include <klibc/string.h>
 
-size_t strlen(const char* str) {
+std::size_t strlen(const char* str) {
     if (!str) {
         return 0;
     }
-    size_t length = 0;
+    std::size_t length = 0;
     while (str[length] != '\0') {
         length++;
     }   
@@ -15,11 +15,11 @@ size_t strlen(const char* str) {
 }
 
 #ifdef __STDC_WANT_LIB_EXT1__
-size_t strnlen_s(const char* str, size_t strsz) {
+std::size_t strnlen_s(const char* str, std::size_t strsz) {
     if (!str)
         return 0;
     
-    for (size_t i = 0; i < strsz; i++) {
+    for (std::size_t i = 0; i < strsz; i++) {
         if (str[i] == '\0')
             return i;
     }
@@ -28,7 +28,7 @@ size_t strnlen_s(const char* str, size_t strsz) {
 }
 #endif
 
-int memcmp(const void* lhs, const void* rhs, size_t count) {
+int memcmp(const void* lhs, const void* rhs, std::size_t count) {
     auto p1 = static_cast<const std::uint8_t*>(lhs);
     auto p2 = static_cast<const std::uint8_t*>(rhs);
     
@@ -40,7 +40,7 @@ int memcmp(const void* lhs, const void* rhs, size_t count) {
     return 0;
 }
 
-void* memset(void* dest, int ch, size_t count) {
+void* memset(void* dest, int ch, std::size_t count) {
     if (!dest || count == 0) {
         return dest;
     }
@@ -50,8 +50,8 @@ void* memset(void* dest, int ch, size_t count) {
     }
     return dest;
 }
-void* memset_explicit(void* dest, int ch, size_t count) {
-    void*(*volatile volatile_memset)(void*, int, size_t) = memset;
+void* memset_explicit(void* dest, int ch, std::size_t count) {
+    void*(*volatile volatile_memset)(void*, int, std::size_t) = memset;
     return volatile_memset(dest, ch, count);
 }
 
@@ -64,16 +64,30 @@ void* memcpy(void* dest, const void* src, size_t count) {
     auto p1 = static_cast<std::uint8_t*>(dest);
     auto p2 = static_cast<const std::uint8_t*>(src);
 
-    for (size_t i = 0; i < count; ++i) {
+    for (std::size_t i = 0; i < count; ++i) {
         p1[i] = p2[i];
     }
     return dest;
 }
 
+void* memmove(void* dest, const void* src, std::size_t n) {
+    auto* destPtr = static_cast<std::uint8_t*>(dest);
+    if (src >= dest && src < &(destPtr)[n]) {
+        // Copy from right to left
+        char* dst = (char*)dest;
+        char* src_ = (char*)src;
+        for (std::size_t i = 0; i < n; ++i) {
+            dst[i] = src_[n - i - 1];
+        }
+    } else {
+        // Copy from left to right
+        char* dst = (char*)dest;
+        char* src_ = (char*)src;
+        for (std::size_t i = 0; i < n; ++i) {
+            dst[i] = src_[i];
+        }
+    }
+    return dest;
 }
 
-namespace klibc {
-    std::size_t strlen(const char* str) {
-        return ::strlen(str);
-    }
 }

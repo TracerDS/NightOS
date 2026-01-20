@@ -19,7 +19,7 @@ if [[ ! -d "$SCRIPT_DIR/../logs" ]]; then
 	mkdir "$SCRIPT_DIR/../logs"
 fi
 
->"$SCRIPT_DIR/../logs/qemu.log"
+echo "" > "$SCRIPT_DIR/../logs/qemu.log"
 
 qemu-system-i386 \
     $args \

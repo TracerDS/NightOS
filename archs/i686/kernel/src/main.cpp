@@ -126,31 +126,13 @@ void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info) noexcept {
 		reinterpret_cast<std::uintptr_t>(__kernel_end__)
 	);
 
-	int* ptr = new int(42);
-	if (!ptr) {
-		NOS::Utils::Asm::KernelPanic();
-	}
-
-	IO::kprintf("Dynamically allocated integer at: 0x%08lX with value %d\r\n", (uintptr_t)ptr, *ptr);
-	delete ptr;
-
-	//Log::Logger::log("Logging is working!");
-
-	IO::kprintf_color(
-		"Hello\nKernel\nWorld\r\n",
-		VGAColor::VGA_COLOR_LIGHT_MAGENTA
-	);
 	IO::kprintf("__cplusplus: %ld\r\n", __cplusplus);
 	IO::kprintf("CPUID supported: %s\r\n", __kernel_check_cpuid__() ? "true" : "false");
 
 	char vendor[13] {0};
 	CPUID::GetVendor(vendor);
 	IO::kprintf("CPUID vendor: %s\r\n", vendor);
-	IO::kprintf("vendor addr: 0x%X\r\n", (unsigned int)&vendor);
 	IO::kprintf("LAPIC built in: %s\r\n", CPUID::LAPIC_Supported() ? "true" : "false");
-
-
-	IO::kprintf("Data: %X\r\n", *(std::uint8_t*)(0x70400 + 0xC0000000) );
 
 	if (true) {
 		ISR::RegisterHandler(0x21, []([[maybe_unused]] ISR::InterruptState* regs) {
