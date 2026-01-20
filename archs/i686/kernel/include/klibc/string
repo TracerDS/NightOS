@@ -1,0 +1,189 @@
+#pragma once
+
+#include <compare>
+#include <type_traits>
+
+#include <klibc/memory>
+#include <klibc/cstring>
+
+namespace klibc {
+    namespace detail {
+        template <typename T>
+        struct char_types {
+            using int_type = unsigned long;
+        };
+    }
+
+    template <class CharT>
+    struct char_traits {
+        using char_type = CharT;
+        using int_type = typename detail::char_types<CharT>::int_type;
+#if __cpp_lib_three_way_comparison
+        using comparison_category = std::strong_ordering;
+#endif
+
+        static constexpr void assign(char_type& dest, const char_type& src) noexcept {
+            if (std::is_constant_evaluated()) {
+                klibc::construct_at(klibc::addressof(dest), src);
+            } else {
+                dest = src;
+            }
+        }
+        
+        static constexpr void assign(
+            char_type& dest,
+            std::size_t count,
+            char_type what
+        ) noexcept {
+            if (std::is_constant_evaluated()) {
+                for (std::size_t i = 0; i < count; ++i) {
+                    klibc::construct_at(dest + i, what);
+                }
+                return dest;
+            }
+
+            if constexpr (sizeof(CharT) == 1 && __is_trivial(CharT)) {
+                if (count > 0) {
+                    std::uint8_t c;
+                    klibc::memcpy(&c, klibc::addressof(what), 1);
+                    klibc::memset(dest, c, count);
+                }
+            } else {
+                klibc::memset(dest, what, count);
+            }
+            return dest;
+        }
+
+        static constexpr bool eq(const char_type& c1, const char_type& c2) noexcept {
+            return c1 == c2;
+        }
+        static constexpr bool lt(const char_type& c1, const char_type& c2) noexcept {
+            return c1 < c2;
+        }
+        static constexpr char_type* move(
+            char_type* dest,
+            const char_type* src,
+            std::size_t count
+        ) {
+            if (count == 0)
+                return dest;
+            
+            if (std::is_constant_evaluated()) {
+#ifdef __KERNEL_COMPILER_GCC__
+                // Check if its a constant expression
+                // and if the pointers are related
+                if (
+                    __builtin_constant_p(src < dest) &&
+                    dest > src &&
+                    dest < (src + count)
+                ) {
+                    while (count > 0) {
+                        count--;
+                        assign(dest[count], src[count]);
+                    }
+                } else {
+                    copy(dest, src, count);
+                }
+#endif
+                return dest;
+            }
+            klibc::memcmp
+#ifdef __KERNEL_COMPILER_GCC__
+            klibc::memmove()
+#endif
+            return dest;
+        }
+        
+        static constexpr char_type* copy(
+            char_type* dest,
+            const char_type* src,
+            std::size_t count
+        ) {
+            if (count == 0)
+                return dest;
+            
+            if (std::is_constant_evaluated()) {
+                for (std::size_t i = 0; i < count; ++i) {
+                    klibc::construct_at(dest + i, src[i]);
+                }
+            } else {
+                klibc::memcpy(dest, src, count * sizeof(char_type));
+            }
+            return dest;
+        }
+
+        static constexpr char_type* compare(
+            const char_type* dest,
+            const char_type* src,
+            std::size_t count
+        ) noexcept {
+            for (std::size_t i = 0; i < count; ++i) {
+                if (lt(dest[i], src[i]))
+                    return -1;
+                else if (lt(src[i], dest[i]))
+                    return 1;
+            }
+            return 0;
+        }
+
+        static constexpr std::size_t length(
+            const char_type* str
+        ) noexcept {
+            std::size_t i = 0;
+            while (!eq(str[i], char_type{}))
+                ++i;
+            return i;
+        }
+
+        static constexpr char_type find(
+            const char_type* src,
+            std::size_t count,
+            const char_type& what
+        ) {
+            for (std::size_t i = 0; i < count; ++i)
+                if (eq(src[i], what))
+                    return src + i;
+
+            return 0;
+        }
+
+        static constexpr char_type to_char_type(
+            const int_type& value
+        ) noexcept {
+            return static_cast<char_type>(value);
+        }
+
+        static constexpr int_type to_int_type(
+            const char_type& value
+        ) noexcept {
+            return static_cast<int_type>(value);
+        }
+
+        static constexpr bool eq_int_type(
+            const int_type& a,
+            const int_type& b
+        ) noexcept {
+            return a == b;
+        }
+
+        static constexpr int_type eof() noexcept {
+            return static_cast<int_type>(-1);
+        }
+
+        static constexpr int_type not_eof(const int_type& value) noexcept {
+            if (!eq_int_type(value, eof()))
+                return value;
+            else
+                return to_int_type(char_type{});
+        }
+    };
+
+    template <typename T>
+    struct allocator {};
+
+    template <
+        class CharT,
+        class Traits = char_traits<CharT>,
+        class Allocator = allocator<CharT>
+    > class basic_string {};
+}

@@ -1,0 +1,26 @@
+#pragma once
+
+#include <utility>
+
+namespace klibc {
+#if __cpp_constexpr_dynamic_alloc
+    template <typename T, typename... Args>
+    constexpr auto construct_at(T* location, Args&&... args) noexcept
+        -> decltype(::new((void*)0) T(std::declval<Args>()...))
+    {
+        return ::new((void*)location) T(std::forward<Args>(args)...);
+    }
+#endif
+
+    template <class T>
+    [[nodiscard]] inline constexpr T* addressof(T& value) noexcept {
+#ifdef __KERNEL_COMPILER_GCC__
+        return __builtin_addressof(value);
+#else
+        return &value;
+#endif
+    }
+
+    template<class T>
+    const T* addressof(const T&&) = delete;
+}

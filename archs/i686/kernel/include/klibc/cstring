@@ -7,7 +7,7 @@ extern "C" {
 }
 
 namespace klibc {
-    std::size_t strlen(const char* str);
+    using ::strlen;
 
 #ifdef __STDC_WANT_LIB_EXT1__
     using ::strnlen_s;
