@@ -1,7 +1,7 @@
 #include <memory/vmm.hpp>
 #include <memory/pmm.hpp>
 #include <memory/paging.hpp>
-
+#include <logger.hpp>
 #include <io.hpp>
 
 #include <cstddef>
@@ -20,27 +20,29 @@ namespace NOS::Memory {
         std::size_t totalSize;
         NodeHeader* head;
     public:
-        void Initialize(std::uintptr_t startPhysAddr, std::size_t size) noexcept;
+        void Initialize() noexcept;
         void* Allocate(std::size_t size) noexcept;
         void Free(void* ptr) noexcept;
     };
     LinkedListAllocator g_linkedListAllocator{};
 
-    void LinkedListAllocator::Initialize(std::uintptr_t startPhysAddr, std::size_t size) noexcept {
-        // Assume we are mapped in already
-        auto pagesNeeded = Utils::align_up(size, ByteUnits::KB4) / ByteUnits::KB4;
+    void LinkedListAllocator::Initialize() noexcept {
+        auto startVirtAddr = VirtualMemoryAllocator::HEAP_VIRTUAL_START;
+        auto size = VirtualMemoryAllocator::HEAP_VIRTUAL_END - startVirtAddr;
     
 #ifdef __KERNEL_DEBUG__
-        IO::kprintf("VMM: Initializing with %08lX bytes (%lu pages)\r\n",
-            size,
-            pagesNeeded
+        Logger::Log(
+            "[VMM] Initializing VMM heap at 0x%08lX, size %lu bytes\r\n",
+            startVirtAddr,
+            size
         );
 #endif
-        auto physAddr = g_pmmAllocator.request_pages(pagesNeeded);
+
+        auto physAddr = g_pmmAllocator.request_pages(size / ByteUnits::KB4);
         if (!physAddr) {
             // No memory. Panic
             IO::kprintf_color(
-                "VMM: Out of memory during initialization!\r\n",
+                "[VMM] Out of memory during initialization!\r\n",
                 Terminal::VGAColor::VGA_COLOR_LIGHT_RED,
                 Terminal::VGAColor::VGA_COLOR_BLACK
             );
@@ -48,20 +50,20 @@ namespace NOS::Memory {
             return;
         }
 
-        for(std::size_t i = 0; i < physAddr.size(); ++i) {
+        for (std::size_t i = 0; i < physAddr.size(); ++i) {
             // Map it
             g_paging.map_page(
                 physAddr.ToAddress() + (i * ByteUnits::KB4),
-                startPhysAddr + (i * ByteUnits::KB4), 
+                startVirtAddr + (i * ByteUnits::KB4), 
                 PageFlags::PAGE_PRESENT | PageFlags::PAGE_READ_WRITE
             );
         }
 
-        baseAddr = reinterpret_cast<void*>(startPhysAddr);
+        baseAddr = reinterpret_cast<void*>(startVirtAddr);
         totalSize = size;
 
         // Create the first, large, free block
-        head = reinterpret_cast<NodeHeader*>(startPhysAddr);
+        head = reinterpret_cast<NodeHeader*>(startVirtAddr);
         head->size = size - sizeof(NodeHeader);
         head->isFree = true;
         head->next = nullptr;
@@ -71,7 +73,8 @@ namespace NOS::Memory {
         std::size_t alignedSize = Utils::align_up(size, alignof(std::max_align_t));
 
 #ifdef __KERNEL_DEBUG__
-        IO::kprintf("VMM: Allocating %lu bytes (aligned to %lu bytes)\r\n",
+        Logger::Log(
+            "[VMM] Allocating %lu bytes (aligned to %lu bytes)\r\n",
             size,
             alignedSize
         );
@@ -109,6 +112,13 @@ namespace NOS::Memory {
         if (!ptr)
             return;
 
+#ifdef __KERNEL_DEBUG__
+        Logger::Log(
+            "[VMM] Freeing memory at 0x%08lX\r\n",
+            reinterpret_cast<std::uintptr_t>(ptr)
+        );
+#endif
+
         NodeHeader* header = reinterpret_cast<NodeHeader*>(
             reinterpret_cast<std::uintptr_t>(ptr) - sizeof(NodeHeader)
         );
@@ -126,8 +136,8 @@ namespace NOS::Memory {
         }
     }
 
-    void VirtualMemoryAllocator::init(std::uintptr_t startVirtAddr, std::size_t size) noexcept {
-        g_linkedListAllocator.Initialize(startVirtAddr, size);
+    void VirtualMemoryAllocator::init() noexcept {
+        g_linkedListAllocator.Initialize();
     }
 
     void* VirtualMemoryAllocator::allocate(std::size_t size) noexcept {

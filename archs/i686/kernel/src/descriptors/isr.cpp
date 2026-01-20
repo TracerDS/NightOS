@@ -9,6 +9,14 @@
 
 #include <utility>
 
+extern "C" void __kernel_serial_write_byte__(std::uint16_t port, std::uint8_t data);
+extern "C" std::uint32_t __kernel_get_cr2__() noexcept;
+
+extern "C" std::uint8_t __isr_stubs_start__[];
+extern "C" std::uint8_t __isr_stubs_end__[];
+
+extern "C" void* __isr_stub_table__[];
+
 namespace NOS {
     namespace Descriptors::GDT {
         extern std::uint8_t g_codeSegmentOffset;
@@ -17,14 +25,6 @@ namespace NOS {
     }
 
     namespace Interrupts::ISR {
-        extern "C" void __kernel_serial_write_byte__(std::uint16_t port, std::uint8_t data);
-        extern "C" std::uint32_t __kernel_get_cr2__() noexcept;
-
-        extern "C" std::uint8_t __isr_stubs_start__[];
-        extern "C" std::uint8_t __isr_stubs_end__[];
-
-        extern "C" void* __isr_stub_table__[];
-
         constexpr bool __isr_is_error__(std::uint8_t interrupt) noexcept {
             switch (interrupt) {
                 case 8:
@@ -216,7 +216,7 @@ namespace NOS {
         void Init() noexcept {
             constexpr auto commonFlags =
                 std::to_underlying(IDT::GateType::GATE_INT32) |
-                std::to_underlying(Descriptors::PrivilegeType::PT_KERNEL);
+                (std::to_underlying(Descriptors::PrivilegeType::PT_KERNEL) << 5L);
 
             IO::kprintf("ISR 50 stub address: 0x%08lX\r\n", (uintptr_t)__isr_stub_table__[50]);
             for (std::size_t i = 0; i < 256; ++i) {

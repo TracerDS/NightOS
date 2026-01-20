@@ -96,7 +96,7 @@ namespace NOS::Memory {
             memend
         );
 #endif
-        mark_page(0x0, true); // Mark null page as used
+        mark_page_range(0x0, 0x10000, true); // Mark first 1MB as used
 
         // Mark kernel pages as used
         mark_page_range(
@@ -105,10 +105,7 @@ namespace NOS::Memory {
             true
         );
 
-	    Memory::g_vmmAllocator.init(
-            VirtualMemoryAllocator::HEAP_VIRTUAL_START,
-            memend - memstart
-        );
+	    Memory::g_vmmAllocator.init();
     }
 
     void PhysicalMemoryAllocator::mark_page(std::uintptr_t addr, bool used) noexcept {

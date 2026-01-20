@@ -10,11 +10,11 @@ namespace NOS::Descriptors {
         PT_USER         = 0b11  // User mode
     };
 
-    struct SegmentSelector {
+    struct PACKED SegmentSelector {
         std::uint16_t segment : 13;
         std::uint8_t reserved : 1;
         PrivilegeType privilegeLevel : 2;
-    } __attribute__((packed));
+    };
 
     static_assert(sizeof(SegmentSelector) == 2, "SegmentSelector size mismatch");
 

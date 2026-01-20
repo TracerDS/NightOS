@@ -35,8 +35,12 @@ SRC_FILES := $(shell find $(SRC_DIR) -type f -name *.$(SRC_EXT))
 ASM_FILES := $(shell find $(SRC_DIR) -type f -name *.$(ASM_EXT))
 OUT_FILES := $(patsubst $(SRC_DIR)/%.$(SRC_EXT),$(OUT_DIR)/%.$(OUT_EXT),$(SRC_FILES))
 
-compile: $(OUT_FILES)
-	$(LD) $(LDFLAGS) -o $(OUT_DIR)/kernel.$(BIN_EXT) $^
+BIN_PATH := $(OUT_DIR)/kernel.$(BIN_EXT)
+
+compile: $(BIN_PATH)
+
+$(BIN_PATH): $(OUT_FILES)
+	$(LD) $(LDFLAGS) $^ -o $(BIN_PATH)
 
 $(OUT_DIR)/%.$(OUT_EXT): $(SRC_DIR)/%.$(SRC_EXT)
 	@mkdir -p $(patsubst $(SRC_DIR)/%,$(OUT_DIR)/%,$(dir $<))

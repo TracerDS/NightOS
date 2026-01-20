@@ -7,8 +7,9 @@ namespace NOS::Memory {
     class VirtualMemoryAllocator {
     public:
         static constexpr std::uintptr_t HEAP_VIRTUAL_START = 0xD0000000;
+        static constexpr std::uintptr_t HEAP_VIRTUAL_END   = 0xE0000000;
     public:
-        void init(std::uintptr_t startVirtAddr, std::size_t size) noexcept;
+        void init() noexcept;
 
         void* allocate(std::size_t size) noexcept;
         void free(void* ptr) noexcept;

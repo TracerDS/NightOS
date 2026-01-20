@@ -6,12 +6,14 @@ namespace NOS::Interrupts::IDT {
         const Descriptor* const descriptor
     );
     
-    klibc::array<Entry, Descriptors::INTERRUPT_COUNT> m_entries;
+    klibc::array<Entry, Descriptors::INTERRUPT_COUNT> m_entries{};
     Descriptor m_descriptor;
     
     void Init() noexcept {
         m_descriptor = {
-            .limit = static_cast<std::uint16_t>(m_entries.size() - 1),
+            .limit = static_cast<std::uint16_t>(
+                m_entries.size() * sizeof(Entry) - 1
+            ),
             .entries = m_entries.data()
         };
         __kernel_load_IDT__(&m_descriptor);

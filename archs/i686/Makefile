@@ -32,8 +32,12 @@ KERNEL_DIR := kernel
 
 all: link
 
-compile:
+compile: bootloader kernel
+
+bootloader:
 	$(MAKE) -C $(BOOTLOADER_DIR) compile
+
+kernel:
 	$(MAKE) -C $(KERNEL_DIR) compile
 
 link: compile
@@ -42,11 +46,6 @@ link: compile
 	$(LD) $(LDFLAGS) -o $(BIN_DIR)/$(ARCH_NAME).$(BIN_EXT) \
 		$(BOOTLOADER_DIR)/$(OUT_DIR)/bootloader.$(BIN_EXT) \
 		$(KERNEL_DIR)/$(OUT_DIR)/kernel.$(BIN_EXT) \
-	-lgcc
-	
-#	$(LD) $(LDFLAGS) -o $(BIN_DIR)/$(ARCH_NAME).$(BIN_EXT) \
-		$(shell find $(BOOTLOADER_DIR) -type f -name '*.$(OUT_EXT)') \
-		$(shell find $(KERNEL_DIR) -type f -name '*.$(OUT_EXT)') \
 	-lgcc
 
 clean:
@@ -85,5 +84,5 @@ info:
 	@echo "BOOTLOADER_DIR: $(BOOTLOADER_DIR)"
 	@echo "KERNEL_DIR: $(KERNEL_DIR)"
 
-.PHONY: all compile link clean info
+.PHONY: all compile bootloader kernel link clean info
 	

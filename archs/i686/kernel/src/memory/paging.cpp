@@ -44,7 +44,7 @@ namespace NOS::Memory {
 
         auto kernel_pages = (kernel_end_phys_aligned - kernel_start_phys_aligned) / ByteUnits::MB4;
 
-        Logger::Log("[IPS] Enabling PSE...\r\n");
+        Logger::Log("[Paging] Enabling PSE...\r\n");
         __kernel_paging_enable_pse__();
 
         // Reset paging structures (BSS is typically zeroed, but keep this explicit)
@@ -56,26 +56,27 @@ namespace NOS::Memory {
         auto pageDirVirt = reinterpret_cast<std::uintptr_t>(m_pageDirectory);
         auto pageDirPhys = pageDirVirt - kernel_offset;
 
-        IO::kprintf("Paging: Page Directory at virt 0x%08lX, phys 0x%08lX\r\n",
+        Logger::Log(
+            "[Paging] Page Directory at virt 0x%08lX, phys 0x%08lX\r\n",
             pageDirVirt,
             pageDirPhys
         );
 
         // Map the page directory into itself (for easy access at 0xFFC00000)
-        Logger::Log("[IPS] Mapping page directory at 0xFFC00000\r\n");
+        Logger::Log("[Paging] Mapping page directory at 0xFFC00000\r\n");
 
         // Map it manually. map_page would try to allocate a new page table
         // but the allocator isnt ready yet.
         m_pageDirectory[1023] = (pageDirPhys & 0xFFFFF000) |
             PageFlags::PAGE_PRESENT | PageFlags::PAGE_READ_WRITE;
 
-        Logger::Log("[IPS] Identity mapping 0x%08lX - 0x%08lX...\r\n",
+        Logger::Log("[Paging] Identity mapping 0x%08lX - 0x%08lX...\r\n",
             0x0, ByteUnits::MB4
         );
         // Identity map the first 4MBs
         map_page(0x0, 0x0, DEFAULT_FLAGS);
 
-        Logger::Log("[IPS] Mapping kernel pages (0x%08lX - 0x%08lX)...\r\n",
+        Logger::Log("[Paging] Mapping kernel pages (0x%08lX - 0x%08lX)...\r\n",
             reinterpret_cast<uintptr_t>(kernel_start_virt_aligned),
             reinterpret_cast<uintptr_t>(kernel_end_virt_aligned)
         );
@@ -89,10 +90,10 @@ namespace NOS::Memory {
             );
         }
 
-        Logger::Log("[IPS] Loading paging directory (0x%08lX)...\r\n", pageDirPhys);
+        Logger::Log("[Paging] Loading paging directory (0x%08lX)...\r\n", pageDirPhys);
         __kernel_load_page_directory__(pageDirPhys);
         __kernel_enable_paging__();
-        Logger::Log("[IPS] Paging initialized!\r\n");
+        Logger::Log("[Paging] Paging initialized!\r\n");
     }
 
     void Paging::map_page(
@@ -147,7 +148,7 @@ namespace NOS::Memory {
 
 #ifdef __KERNEL_DEBUG__
             IO::kprintf(
-                "Paging: Created new page table for virtual address 0x%08lX at phys 0x%08lX\r\n",
+                "[Paging] Created new page table for virtual address 0x%08lX at phys 0x%08lX\r\n",
                 virtualAddr,
                 newTablePhys.ToAddress()
             );
