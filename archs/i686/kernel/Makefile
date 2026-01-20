@@ -10,7 +10,7 @@ ARCH_NAME := i686
 SRC_EXT := cpp
 ASM_EXT := asm
 OUT_EXT := o
-PRE_EXT := po
+BIN_EXT := bin
 
 ARCH_NAME := $(notdir $(realpath $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))/..))
 CROSS_PREFIX := $(ARCH_NAME)-elf
@@ -36,6 +36,7 @@ ASM_FILES := $(shell find $(SRC_DIR) -type f -name *.$(ASM_EXT))
 OUT_FILES := $(patsubst $(SRC_DIR)/%.$(SRC_EXT),$(OUT_DIR)/%.$(OUT_EXT),$(SRC_FILES))
 
 compile: $(OUT_FILES)
+	$(LD) $(LDFLAGS) -o $(OUT_DIR)/kernel.$(BIN_EXT) $^
 
 $(OUT_DIR)/%.$(OUT_EXT): $(SRC_DIR)/%.$(SRC_EXT)
 	@mkdir -p $(patsubst $(SRC_DIR)/%,$(OUT_DIR)/%,$(dir $<))

@@ -38,8 +38,13 @@ compile:
 
 link: compile
 	@mkdir -p $(BIN_DIR)
-	
+
 	$(LD) $(LDFLAGS) -o $(BIN_DIR)/$(ARCH_NAME).$(BIN_EXT) \
+		$(BOOTLOADER_DIR)/$(OUT_DIR)/bootloader.$(BIN_EXT) \
+		$(KERNEL_DIR)/$(OUT_DIR)/kernel.$(BIN_EXT) \
+	-lgcc
+	
+#	$(LD) $(LDFLAGS) -o $(BIN_DIR)/$(ARCH_NAME).$(BIN_EXT) \
 		$(shell find $(BOOTLOADER_DIR) -type f -name '*.$(OUT_EXT)') \
 		$(shell find $(KERNEL_DIR) -type f -name '*.$(OUT_EXT)') \
 	-lgcc
