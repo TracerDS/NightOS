@@ -218,7 +218,6 @@ namespace NOS {
                 std::to_underlying(IDT::GateType::GATE_INT32) |
                 (std::to_underlying(Descriptors::PrivilegeType::PT_KERNEL) << 5L);
 
-            IO::kprintf("ISR 50 stub address: 0x%08lX\r\n", (uintptr_t)__isr_stub_table__[50]);
             for (std::size_t i = 0; i < 256; ++i) {
                 IDT::SetEntry(
                     i,

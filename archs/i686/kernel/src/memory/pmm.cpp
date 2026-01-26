@@ -4,10 +4,11 @@
 #include <grub/multiboot.hpp>
 #include <klibc/cstring>
 #include <klibc/array>
-#include <io.hpp>
+#include <logger.hpp>
 
 #include <utility>
 
+extern std::uint8_t __kernel_post_boot_start__[];
 extern std::uint8_t __kernel_start__[];
 extern std::uint8_t __kernel_end__[];
 
@@ -26,7 +27,7 @@ namespace NOS::Memory {
             std::uint64_t length = entry->len;
             std::uint32_t type = entry->type;
 
-#ifdef __KERNEL_DEBUG__
+#ifdef __NOS_KERNEL_DEBUG__
             const char* strtype;
             switch(type) {
                 default: strtype = "Unknown"; break;
@@ -36,7 +37,8 @@ namespace NOS::Memory {
                 case MULTIBOOT_MEMORY_NVS: strtype = "NVS"; break;
                 case MULTIBOOT_MEMORY_BADRAM: strtype = "Bad RAM"; break;
             }
-            IO::kprintf("%s: 0x%llX - 0x%llX -> 0x%llX - 0x%llX\r\n",
+            Logger::Log(
+                "[PMM] %s: 0x%llX - 0x%llX -> 0x%llX - 0x%llX\r\n",
                 strtype,
                 base, base + length, nextAvailAddr, nextAvailAddr + length
             );
@@ -89,23 +91,33 @@ namespace NOS::Memory {
 
         [[maybe_unused]] auto [memstart, memend] = remap_memory_sections(mb_info);
 
-#ifndef __KERNEL_DEBUG__
-        IO::kprintf(
+#ifndef __NOS_KERNEL_DEBUG__
+        Logger::Log(
             "Free memory: 0x%lX -> 0x%lX\r\n",
             memstart,
             memend
         );
 #endif
-        mark_page_range(0x0, 0x10000, true); // Mark first 1MB as used
+        mark_page_range(0x0, 0x100000, true); // Mark first 1MB as used
+
+        auto kernel_boot_int = reinterpret_cast<std::uintptr_t>(__kernel_post_boot_start__);
+        auto kernel_start_int = reinterpret_cast<std::uintptr_t>(__kernel_start__);
+        auto kernel_end_int = reinterpret_cast<std::uintptr_t>(__kernel_end__);
+        
+        auto kernel_offset = kernel_start_int - kernel_boot_int;
+        auto kernel_start_phys = kernel_start_int - kernel_offset;
+        auto kernel_end_phys = kernel_end_int - kernel_offset;
 
         // Mark kernel pages as used
         mark_page_range(
-            reinterpret_cast<std::uintptr_t>(__kernel_start__),
-            reinterpret_cast<std::uintptr_t>(__kernel_end__),
+            kernel_start_phys,
+            kernel_end_phys,
             true
         );
 
+#ifndef __NOS_KERNEL_ALLOCATOR_VIRTUAL_MANUAL_INIT__
 	    Memory::g_vmmAllocator.init();
+#endif
     }
 
     void PhysicalMemoryAllocator::mark_page(std::uintptr_t addr, bool used) noexcept {
@@ -119,9 +131,9 @@ namespace NOS::Memory {
         }
 
         if (used) {
-            Utils::Bits::SetBit(m_bitmap[byte_index], bit_index);
+            Utils::Bits::set_bit(m_bitmap[byte_index], bit_index);
         } else {
-            Utils::Bits::ClearBit(m_bitmap[byte_index], bit_index);
+            Utils::Bits::clear_bit(m_bitmap[byte_index], bit_index);
         }
     }
     
@@ -132,6 +144,10 @@ namespace NOS::Memory {
     ) noexcept {
         std::uintptr_t addr = Utils::align_down(start, ByteUnits::KB4);
         std::uintptr_t end_addr = Utils::align_up(end, ByteUnits::KB4);
+
+        Logger::Log("[PMM] Marking page range: 0x%lX - 0x%lX as %s\r\n",
+            addr, end_addr, used ? "used" : "free"
+        );
 
         while (addr < end_addr) {
             mark_page(addr, used);
@@ -147,9 +163,11 @@ namespace NOS::Memory {
             return nullptr;
         }
 
-        for (std::size_t i = 0; i < (m_bitmap.size() * 8); ++i) {
+        auto bitmapPagesCount = m_bitmap.size() * 8;
+
+        for (std::size_t i = 0; i < bitmapPagesCount; ++i) {
             // Check if we have enough remaining bits to satisfy the request
-            if (i + pages > m_bitmap.size() * 8) {
+            if (i + pages > bitmapPagesCount) {
                 break;
             }
 
@@ -167,7 +185,7 @@ namespace NOS::Memory {
                 }
 
                 // If ANY bit is set (page is used), this block won't work
-                if (Utils::Bits::IsBitSet(m_bitmap[byte_index], bit_index)) {
+                if (Utils::Bits::is_bit_set(m_bitmap[byte_index], bit_index)) {
                     block_found = false;
                     break;
                 }
@@ -179,7 +197,7 @@ namespace NOS::Memory {
                     std::uint64_t byte_index = index / 8;
                     std::uint8_t bit_index = index % 8;
 
-                    Utils::Bits::SetBit(m_bitmap[byte_index], bit_index);
+                    Utils::Bits::set_bit(m_bitmap[byte_index], bit_index);
                 }
 
                 return {

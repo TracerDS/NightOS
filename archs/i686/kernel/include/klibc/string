@@ -6,6 +6,9 @@
 #include <klibc/memory>
 #include <klibc/cstring>
 
+#include <memory>
+#include <string>
+
 namespace klibc {
     namespace detail {
         template <typename T>
@@ -69,7 +72,7 @@ namespace klibc {
                 return dest;
             
             if (std::is_constant_evaluated()) {
-#ifdef __KERNEL_COMPILER_GCC__
+#ifdef __NOS_KERNEL_COMPILER_GCC__
                 // Check if its a constant expression
                 // and if the pointers are related
                 if (
@@ -77,20 +80,20 @@ namespace klibc {
                     dest > src &&
                     dest < (src + count)
                 ) {
+                    // overlapped, copy backwards
                     while (count > 0) {
                         count--;
                         assign(dest[count], src[count]);
                     }
                 } else {
+                    // not overlapping, copy forwards
                     copy(dest, src, count);
                 }
 #endif
                 return dest;
             }
-            klibc::memcmp
-#ifdef __KERNEL_COMPILER_GCC__
-            klibc::memmove()
-#endif
+            klibc::memmove(dest, src, count * sizeof(char_type));
+
             return dest;
         }
         
@@ -179,11 +182,29 @@ namespace klibc {
     };
 
     template <typename T>
-    struct allocator {};
+    class allocator {};
 
     template <
         class CharT,
-        class Traits = char_traits<CharT>,
-        class Allocator = allocator<CharT>
-    > class basic_string {};
+        class Traits,
+        class Allocator
+    >
+    class basic_string {
+    public:
+        static_assert(std::is_same_v<CharT, typename Traits::char_type>);
+        static_assert(std::is_same_v<CharT, typename Allocator::value_type>);
+
+        using traits_type     = Traits;
+        using value_type      = typename traits_type::char_type;
+        using allocator_type  = Allocator;
+        using size_type       = typename allocator_type::size_type;
+        using difference_type = typename allocator_type::difference_type;
+        using reference       = typename allocator_type::reference;
+
+        static constexpr size_type npos = static_cast<size_type>(-1);
+    protected:
+
+    public:
+        explicit basic_string
+    };
 }

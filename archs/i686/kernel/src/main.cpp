@@ -26,6 +26,8 @@
 #include <video/pixels.hpp>
 #include <grub/multiboot.hpp>
 
+#include <drivers/harddisk/atapio.hpp>
+
 #define COLOR_BLACK     0x00000000
 #define COLOR_WHITE     0x00FFFFFF
 #define COLOR_RED       0x00FF0000
@@ -118,8 +120,10 @@ void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info) noexcept {
 	NOS::Memory::g_paging.init();
 
 	// Paging enabled, set to our page directory in src/paging.cpp
+
+	// Initialize memory allocators (PMM calls VMM)
 	NOS::Memory::g_pmmAllocator.init(mb_info);
-	
+
 	IO::kprintf(
 		"Kernel loaded at: 0x%08lX - 0x%08lX\r\n",
 		reinterpret_cast<std::uintptr_t>(__kernel_start__),
@@ -133,6 +137,21 @@ void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info) noexcept {
 	CPUID::GetVendor(vendor);
 	IO::kprintf("CPUID vendor: %s\r\n", vendor);
 	IO::kprintf("LAPIC built in: %s\r\n", CPUID::LAPIC_Supported() ? "true" : "false");
+
+	NOS::Drivers::Harddisk::ATAPIO::g_ataDriver.init();
+	char* buff = new char[1024]{};
+	NOS::Drivers::Harddisk::ATAPIO::g_ataDriver.read(buff, 0xC0000000, 1);
+	IO::kprintf("First sector data (LBA 0):\r\n");
+	for (std::size_t i = 0; i < 128; ++i) {
+		IO::kprintf("%04X ", static_cast<std::uint16_t>(buff[i]));
+		if ((i + 1) % 16 == 0) {
+			IO::kprintf("\r\n");
+		}
+	}
+
+	delete[] buff;
+
+	asm("hlt\n");
 
 	if (true) {
 		ISR::RegisterHandler(0x21, []([[maybe_unused]] ISR::InterruptState* regs) {

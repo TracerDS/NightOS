@@ -16,9 +16,12 @@ namespace NOS::Memory {
             bool isFree;
             NodeHeader* next;
         };
-        void* baseAddr;
-        std::size_t totalSize;
+
+        std::uintptr_t heapStart;
+        std::uintptr_t heapEnd;
         NodeHeader* head;
+
+        bool ExpandHeap(std::size_t size) noexcept;
     public:
         void Initialize() noexcept;
         void* Allocate(std::size_t size) noexcept;
@@ -27,52 +30,78 @@ namespace NOS::Memory {
     LinkedListAllocator g_linkedListAllocator{};
 
     void LinkedListAllocator::Initialize() noexcept {
-        auto startVirtAddr = VirtualMemoryAllocator::HEAP_VIRTUAL_START;
-        auto size = VirtualMemoryAllocator::HEAP_VIRTUAL_END - startVirtAddr;
-    
-#ifdef __KERNEL_DEBUG__
-        Logger::Log(
-            "[VMM] Initializing VMM heap at 0x%08lX, size %lu bytes\r\n",
-            startVirtAddr,
-            size
-        );
-#endif
+        heapStart = VirtualMemoryAllocator::HEAP_VIRTUAL_START;
+        heapEnd = heapStart;
 
-        auto physAddr = g_pmmAllocator.request_pages(size / ByteUnits::KB4);
-        if (!physAddr) {
-            // No memory. Panic
-            IO::kprintf_color(
-                "[VMM] Out of memory during initialization!\r\n",
+        std::size_t initialSize = 4 * ByteUnits::KB4;
+    
+        if (!ExpandHeap(initialSize)) {
+            Logger::LogError(
+                "[VMM] Out of memory during heap initialization!\r\n",
                 Terminal::VGAColor::VGA_COLOR_LIGHT_RED,
                 Terminal::VGAColor::VGA_COLOR_BLACK
             );
             Utils::Asm::KernelPanic();
             return;
         }
+    }
 
-        for (std::size_t i = 0; i < physAddr.size(); ++i) {
-            // Map it
-            g_paging.map_page(
-                physAddr.ToAddress() + (i * ByteUnits::KB4),
-                startVirtAddr + (i * ByteUnits::KB4), 
-                PageFlags::PAGE_PRESENT | PageFlags::PAGE_READ_WRITE
+    bool LinkedListAllocator::ExpandHeap(std::size_t size) noexcept {
+        std::size_t pagesNeeded = Utils::align_up(size, ByteUnits::KB4) / ByteUnits::KB4;
+
+        if ((heapEnd + pagesNeeded * ByteUnits::KB4) > VirtualMemoryAllocator::HEAP_VIRTUAL_END) {
+            // Out of heap limit
+            Logger::LogError(
+                "[VMM] Heap virtual address space exhausted!\r\n"
             );
+            return false;
         }
 
-        baseAddr = reinterpret_cast<void*>(startVirtAddr);
-        totalSize = size;
+        auto physMem = g_pmmAllocator.request_pages(pagesNeeded);
+        if (!physMem) {
+            Logger::LogError(
+                "[VMM] Out of memory during expansion!\r\n"
+            );
+            return false;
+        }
 
-        // Create the first, large, free block
-        head = reinterpret_cast<NodeHeader*>(startVirtAddr);
-        head->size = size - sizeof(NodeHeader);
-        head->isFree = true;
-        head->next = nullptr;
+        for (std::size_t i = 0; i < physMem.size(); ++i) {
+            g_paging.map_page(
+                physMem.ToAddress() + (i * ByteUnits::KB4),
+                heapEnd + (i * ByteUnits::KB4),
+                PageFlags::PAGE_PRESENT | PageFlags::PAGE_WRITE_BACK
+            );
+        }
+        NodeHeader* newNode = reinterpret_cast<NodeHeader*>(heapEnd);
+        newNode->size = pagesNeeded * ByteUnits::KB4 - sizeof(NodeHeader);
+        newNode->isFree = true;
+        newNode->next = nullptr;
+
+        if (!head) {
+            head = newNode;
+        } else {
+            NodeHeader* current = head;
+            while (current->next) {
+                current = current->next;
+            }
+            current->next = newNode;
+        }
+
+        heapEnd += pagesNeeded * ByteUnits::KB4;
+#ifdef __NOS_KERNEL_DEBUG__
+        Logger::Log(
+            "[VMM] Expanded heap by %lu bytes, new end: 0x%08lX\r\n",
+            pagesNeeded * ByteUnits::KB4,
+            heapEnd
+        );
+#endif
+        return true;
     }
     
     void* LinkedListAllocator::Allocate(std::size_t size) noexcept {
         std::size_t alignedSize = Utils::align_up(size, alignof(std::max_align_t));
 
-#ifdef __KERNEL_DEBUG__
+#ifdef __NOS_KERNEL_DEBUG__
         Logger::Log(
             "[VMM] Allocating %lu bytes (aligned to %lu bytes)\r\n",
             size,
@@ -80,31 +109,47 @@ namespace NOS::Memory {
         );
 #endif
 
-        NodeHeader* current = head;
-        while (current) {
-            if (current->isFree && current->size >= alignedSize) {
-                // Found a suitable block
-                if (current->size >= alignedSize + sizeof(NodeHeader) + alignof(std::max_align_t)) {
-                    // Split the block
-                    NodeHeader* newBlock = reinterpret_cast<NodeHeader*>(
-                        reinterpret_cast<std::uintptr_t>(current) + sizeof(NodeHeader) + alignedSize
+        while (true) {
+            NodeHeader* current = head;
+
+            while (current) {
+                if (current->isFree && current->size >= alignedSize) {
+                    // Size + header + minimal split size;
+                    // arbitrary number - in this case its 16 bytes
+                    if (current->size >= alignedSize + sizeof(NodeHeader) + 16) {
+                        // Split block
+                        NodeHeader* newNode = reinterpret_cast<NodeHeader*>(
+                            reinterpret_cast<std::uintptr_t>(current) +
+                            sizeof(NodeHeader) + alignedSize
+                        );
+                        newNode->size = current->size - alignedSize - sizeof(NodeHeader);
+                        newNode->isFree = true;
+                        newNode->next = current->next;
+
+                        current->size = alignedSize;
+                        current->next = newNode;
+                    }
+                    current->isFree = false;
+                    return reinterpret_cast<void*>(
+                        reinterpret_cast<std::uintptr_t>(current) + sizeof(NodeHeader)
                     );
-                    newBlock->size = current->size - alignedSize - sizeof(NodeHeader);
-                    newBlock->isFree = true;
-                    newBlock->next = current->next;
-
-                    current->size = alignedSize;
-                    current->next = newBlock;
                 }
-
-                current->isFree = false;
-                return reinterpret_cast<void*>(
-                    reinterpret_cast<std::uintptr_t>(current) + sizeof(NodeHeader)
-                );
-
+                current = current->next;
             }
-            current = current->next;
+
+            // No free block found, expand heap
+            std::size_t bytesNeeded = alignedSize + sizeof(NodeHeader);
+
+            // Minimum expansion size
+            if (bytesNeeded < ByteUnits::KB4)
+                bytesNeeded = ByteUnits::KB4;
+
+            if (!ExpandHeap(bytesNeeded)) {
+                // Out of memory
+                return nullptr;
+            }
         }
+
         return nullptr;
     }
     
@@ -112,7 +157,7 @@ namespace NOS::Memory {
         if (!ptr)
             return;
 
-#ifdef __KERNEL_DEBUG__
+#ifdef __NOS_KERNEL_DEBUG__
         Logger::Log(
             "[VMM] Freeing memory at 0x%08lX\r\n",
             reinterpret_cast<std::uintptr_t>(ptr)

@@ -34,13 +34,13 @@ namespace NOS::Interrupts::IDT {
     }
 
     void EnableEntry(std::uint8_t interrupt) noexcept {
-        Utils::Bits::SetBitMask(
+        Utils::Bits::set(
             m_entries[interrupt].flags,
             Descriptors::GDT::AccessType::AT_VALID_SEGMENT
         );
     }
     void DisableEntry(std::uint8_t interrupt) noexcept {
-        Utils::Bits::ClearBitMask(
+        Utils::Bits::clear(
             m_entries[interrupt].flags,
             Descriptors::GDT::AccessType::AT_VALID_SEGMENT
         );

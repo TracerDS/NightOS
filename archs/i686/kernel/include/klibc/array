@@ -10,19 +10,38 @@ namespace klibc {
     template <class T, std::size_t N>
     class array {
     public:
+        using value_type      = T;
+        using pointer         = value_type*;
+        using const_pointer   = const value_type*;
+        using reference       = value_type&;
+        using const_reference = const value_type&;
+        using iterator        = pointer;
+        using const_iterator  = const_pointer;
+        using size_type       = std::size_t;
+        using difference_type = std::ptrdiff_t;
+
         constexpr array() noexcept {}
-        constexpr array(std::initializer_list<T> elems) noexcept {
-            for(std::size_t i = 0; i < N && i < elems.size(); ++i) {
+        constexpr array(std::initializer_list<value_type> elems) noexcept {
+            for (size_type i = 0; i < N && i < elems.size(); ++i) {
                 m_data[i] = *(elems.begin() + i);
             }
         }
 
-        constexpr std::size_t size() const noexcept { return N; }
-        constexpr T& operator[](std::size_t index) noexcept { return m_data[index]; }
-        constexpr const T& operator[](std::size_t index) const noexcept { return m_data[index]; }
-        constexpr T* data() noexcept { return m_data; }
+        constexpr size_type size() const noexcept { return N; }
+
+        constexpr reference operator[](size_type index) noexcept { return m_data[index]; }
+        constexpr const_reference operator[](size_type index) const noexcept { return m_data[index]; }
+
+        constexpr pointer data() noexcept { return m_data; }
+        constexpr const_pointer data() const noexcept { return m_data; }
+
+        constexpr iterator begin() noexcept { return &m_data[0]; }
+        constexpr iterator end() noexcept { return &m_data[N]; }
+        
+        constexpr const_iterator begin() const noexcept { return &m_data[0]; }
+        constexpr const_iterator end() const noexcept { return &m_data[N]; }
     protected:
-        T m_data[N]{};
+        value_type m_data[N]{};
     };
     
     template <typename T, typename... U>

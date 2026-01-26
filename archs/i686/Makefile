@@ -23,7 +23,8 @@ GCC_VERSION := $(shell $(CXX) -dumpfullversion)
 
 CXXFLAGS := 
 ASFLAGS := 
-LDFLAGS := -T linker.$(LNK_EXT) -O2 -nostdlib -L$(OPT_DIR)/../lib/gcc/$(CROSS_PREFIX)/$(GCC_VERSION)
+LDFLAGS := -T linker.$(LNK_EXT) -O2 -nostdlib \
+	-L$(OPT_DIR)/../lib/gcc/$(CROSS_PREFIX)/$(GCC_VERSION)
 
 BOOTLOADER_DIR := bootloader
 KERNEL_DIR := kernel

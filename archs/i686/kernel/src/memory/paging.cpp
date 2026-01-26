@@ -107,7 +107,7 @@ namespace NOS::Memory {
         flags |= PageFlags::PAGE_PRESENT;
 
         // 4MB page mapping
-        if (Utils::Bits::IsBitMaskSet(flags, PageFlags::PAGE_SIZE_ENABLE)) {
+        if (Utils::Bits::is_set(flags, PageFlags::PAGE_SIZE_ENABLE)) {
             // Large pages require 4MB alignment.
             m_pageDirectory[pageDirIndex] = (physAddr & 0xFFC00000) | flags;
             __kernel_flush_tlb_entry__(virtualAddr);
@@ -117,8 +117,8 @@ namespace NOS::Memory {
         auto pageDirEntry = m_pageDirectory[pageDirIndex];
 
         if (
-            Utils::Bits::IsBitMaskSet(pageDirEntry, PageFlags::PAGE_PRESENT) && 
-            Utils::Bits::IsBitMaskSet(pageDirEntry, PageFlags::PAGE_SIZE_ENABLE)
+            Utils::Bits::is_set(pageDirEntry, PageFlags::PAGE_PRESENT) && 
+            Utils::Bits::is_set(pageDirEntry, PageFlags::PAGE_SIZE_ENABLE)
         ) {
             Logger::LogError(
                 "[Paging]: Trying to map 4KB page at 0x%08lX but 4MB page already exists!\r\n",
@@ -132,11 +132,11 @@ namespace NOS::Memory {
             PT_BASE_VIRT + (pageDirIndex * 0x1000)
         );
         
-        if (!Utils::Bits::IsBitMaskSet(pageDirEntry, PageFlags::PAGE_PRESENT)) {
+        if (!Utils::Bits::is_set(pageDirEntry, PageFlags::PAGE_PRESENT)) {
             auto newTablePhys = Memory::g_pmmAllocator.request_pages(1);
             if (!newTablePhys) {
                 // Out of memory. PANIC
-#ifdef __KERNEL_DEBUG__
+#ifdef __NOS_KERNEL_DEBUG__
                 Logger::LogError(
                     "[Paging] PANIC: Out of memory while mapping address %08lX to %08lX\r\n",
                     physAddr, virtualAddr
@@ -164,13 +164,13 @@ namespace NOS::Memory {
 
         auto pageDirEntry = m_pageDirectory[pageDirIndex];
 
-        if (!Utils::Bits::IsBitMaskSet(pageDirEntry, PageFlags::PAGE_PRESENT)) {
+        if (!Utils::Bits::is_set(pageDirEntry, PageFlags::PAGE_PRESENT)) {
             // Page not present
             return;
         }
 
         // 4MB page
-        if (Utils::Bits::IsBitMaskSet(pageDirEntry, PageFlags::PAGE_SIZE_ENABLE)) {
+        if (Utils::Bits::is_set(pageDirEntry, PageFlags::PAGE_SIZE_ENABLE)) {
             m_pageDirectory[pageDirIndex] = 0;
         } else {
             // 4 KB page

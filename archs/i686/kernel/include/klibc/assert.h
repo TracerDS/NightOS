@@ -5,7 +5,7 @@
 
 void __kassert(const char* msg, const char* file, int line, const char* function);
 
-#ifdef __KERNEL_DEBUG__
+#ifdef __NOS_KERNEL_DEBUG__
 #   define assert(condition) \
     ( \
         (condition) \

@@ -121,12 +121,12 @@ namespace NOS::Serial {
     }
     bool __serial_is_ready_to_read__(Port port) noexcept {
         auto read = __kernel_serial_read_byte__(port + 5);
-        return Utils::Bits::IsBitMaskSet(read, LSR::DATA_READY);
+        return Utils::Bits::is_set(read, LSR::DATA_READY);
     }
 
     bool __serial_is_ready_to_write__(Port port) noexcept {
         auto read = __kernel_serial_read_byte__(port + 5);
-        return Utils::Bits::IsBitMaskSet(read, LSR::TH_REGISTER_EMPTY);
+        return Utils::Bits::is_set(read, LSR::TH_REGISTER_EMPTY);
     }
     
 #ifdef __NOS_SERIAL_DEBUG__

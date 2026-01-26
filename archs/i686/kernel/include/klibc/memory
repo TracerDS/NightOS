@@ -14,13 +14,20 @@ namespace klibc {
 
     template <class T>
     [[nodiscard]] inline constexpr T* addressof(T& value) noexcept {
-#ifdef __KERNEL_COMPILER_GCC__
+#ifdef __NOS_KERNEL_COMPILER_GCC__
         return __builtin_addressof(value);
 #else
         return &value;
 #endif
     }
 
-    template<class T>
+    template <class T>
     const T* addressof(const T&&) = delete;
+
+    template <class Alloc>
+    struct allocator_traits {
+        using allocator_type = Alloc;
+        using value_type = typename Alloc::value_type
+        using pointer = typename Alloc::pointer;
+    };
 }

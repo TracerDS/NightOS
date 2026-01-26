@@ -34,8 +34,7 @@ namespace NOS::IO {
             }
             return digits;
         }
-    }    
-    
+    }
 
     void kprintf(const char* format, ...) noexcept {        
         va_list args;
