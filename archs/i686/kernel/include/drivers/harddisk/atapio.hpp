@@ -43,6 +43,8 @@ namespace NOS::Drivers::Harddisk::ATAPIO {
      */
     class ATAPIODriver {
     public:
+        using Callback = void(*)(void* buffer, bool success);
+    public:
         /**
          * @brief Initializes the ATA PIO driver
          * 
@@ -66,6 +68,21 @@ namespace NOS::Drivers::Harddisk::ATAPIO {
          * @noexcept Does not throw exceptions
          */
         bool read(void* target, std::uint32_t lba, std::uint8_t count) noexcept;
+
+        void readSync(
+            void* buffer,
+            std::uint32_t address,
+            std::uint32_t size
+        ) noexcept;
+
+        void readAsync(
+            void* buffer,
+            std::uint32_t address,
+            std::uint32_t size,
+            Callback callback
+        ) noexcept;
+
+        void onInterrupt() noexcept;
 
         /**
          * @brief Writes data to the hard disk
@@ -102,6 +119,19 @@ namespace NOS::Drivers::Harddisk::ATAPIO {
          * @private
          */
         void wait_data_request() noexcept;
+
+        void start_read(std::uint32_t address, std::uint32_t size) noexcept;
+        
+    private:
+        struct {
+            bool active = false;
+            bool isAsync = false;
+            std::uint8_t* buffer = nullptr;
+
+            // For sync mode
+            volatile bool* syncCompleteFlag = nullptr;
+            Callback callback = nullptr;
+        } m_request;
     };
 
     extern ATAPIODriver g_ataDriver;

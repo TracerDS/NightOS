@@ -1,4 +1,5 @@
 #include <drivers/harddisk/atapio.hpp>
+#include <logger.hpp>
 
 #include <utility>
 
@@ -82,6 +83,69 @@ namespace NOS::Drivers::Harddisk::ATAPIO {
 
         return true;
     }
+    
+    void ATAPIODriver::start_read(
+        std::uint32_t address,
+        std::uint32_t size
+    ) noexcept {
+        if (size == 0)
+            return;
+
+        __kernel_serial_write_byte__(Port::DRIVE_HEAD, 0xE0 | ((address >> 24) & 0x0F));
+        ATA_Delay();
+
+        __kernel_serial_write_byte__(Port::SECTOR_COUNT, (size / 512) + 1);
+        __kernel_serial_write_byte__(Port::LBA_LOW,  (address >> 0) & 0xFF);
+        __kernel_serial_write_byte__(Port::LBA_MID,  (address >> 8) & 0xFF);
+        __kernel_serial_write_byte__(Port::LBA_HIGH, (address >> 16) & 0xFF);
+
+        __kernel_serial_write_byte__(Port::STATUS, std::to_underlying(Status::DRIVE_FAULT));
+    }
+
+    void ATAPIODriver::readSync(
+        void* buffer,
+        std::uint32_t address,
+        std::uint32_t size
+    ) noexcept {
+        if (m_request.active) {
+            Logger::LogError("ATA Driver is busy!\r\n");
+            return;
+        }
+
+        volatile bool completed = false;
+        m_request.active = true;
+        m_request.isAsync = false;
+        m_request.buffer = static_cast<std::uint8_t*>(buffer);
+        m_request.syncCompleteFlag = &completed;
+
+        start_read(address, size);
+
+        while (!completed) {
+            asm("nop\n");
+        }
+
+        m_request.active = false;
+    }
+
+
+    void ATAPIODriver::readAsync(
+        void* buffer,
+        std::uint32_t address,
+        std::uint32_t size,
+        Callback callback
+    ) noexcept {
+        if (m_request.active) {
+            Logger::LogError("ATA Driver is busy!\r\n");
+            return;
+        }
+
+        m_request.active = true;
+        m_request.isAsync = true;
+        m_request.buffer = static_cast<std::uint8_t*>(buffer);
+        m_request.callback = callback;
+
+        start_read(address, size);
+    }
 
     bool ATAPIODriver::write(
         const void* source,
@@ -116,5 +180,44 @@ namespace NOS::Drivers::Harddisk::ATAPIO {
         }
 
         return true;
+    }
+
+    void ATAPIODriver::onInterrupt() noexcept {
+        auto status = __kernel_serial_read_byte__(Port::STATUS);
+
+        if (!m_request.active) {
+            return;
+        }
+
+        if (Utils::Bits::is_set(status, Status::ERROR)) {
+            // Error occurred
+            Logger::LogError("ATA Driver: Error during async operation\r\n");
+            m_request.active = false;
+            if (m_request.isAsync && m_request.callback) {
+                m_request.callback(m_request.buffer, false);
+            }
+            return;
+        }
+
+        if (!Utils::Bits::is_set(status, Status::DATA_REQUEST)) {
+            return;
+        }
+
+        auto* target = reinterpret_cast<std::uint16_t*>(m_request.buffer);
+        for (std::size_t i = 0; i < 256; ++i) {
+            target[i] = __kernel_serial_read_word__(Port::DATA);
+        }
+
+        if (m_request.isAsync) {
+            // Async operation complete
+            if (m_request.callback) {
+                m_request.callback(m_request.buffer, true);
+            }
+            m_request.active = false;
+        } else {
+            if (m_request.syncCompleteFlag) {
+                *m_request.syncCompleteFlag = true;
+            }
+        }
     }
 }

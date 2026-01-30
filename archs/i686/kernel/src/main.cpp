@@ -140,15 +140,15 @@ void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info) noexcept {
 
 	NOS::Drivers::Harddisk::ATAPIO::g_ataDriver.init();
 	char* buff = new char[1024]{};
-	NOS::Drivers::Harddisk::ATAPIO::g_ataDriver.read(buff, 0xC0000000, 1);
-	IO::kprintf("First sector data (LBA 0):\r\n");
-	for (std::size_t i = 0; i < 128; ++i) {
-		IO::kprintf("%04X ", static_cast<std::uint16_t>(buff[i]));
+	NOS::Drivers::Harddisk::ATAPIO::g_ataDriver.readSync(buff, 0, 512);
+
+	IO::kprintf("Read first 512 bytes of disk:\r\n");
+	for (std::size_t i = 0; i < 512; ++i) {
+		IO::kprintf("%02X ", static_cast<std::uint8_t>(buff[i]));
 		if ((i + 1) % 16 == 0) {
 			IO::kprintf("\r\n");
 		}
 	}
-
 	delete[] buff;
 
 	asm("hlt\n");
