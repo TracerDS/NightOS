@@ -18,12 +18,12 @@ namespace NOS::Drivers::Harddisk::ATAPIO {
     };
 
     enum class Status : std::uint8_t {
-        ERROR           = 0x01, // Error
-        DATA_REQUEST    = 0x08, // Data Request (gotowy do transferu)
-        SERVICE_REQUEST = 0x10, // Overlapped Mode Service Request
-        DRIVE_FAULT     = 0x20, // Drive Fault
-        READY           = 0x40, // Ready
-        BUSY            = 0x80  // Busy
+        ERROR           = 1 << 0, // Error
+        DATA_REQUEST    = 1 << 3, // Data Request (gotowy do transferu)
+        SERVICE_REQUEST = 1 << 4, // Overlapped Mode Service Request
+        DRIVE_FAULT     = 1 << 5, // Drive Fault
+        READY           = 1 << 6, // Ready
+        BUSY            = 1 << 7, // Busy
     };
 
     enum class Command : std::uint8_t {
@@ -43,8 +43,8 @@ namespace NOS::Drivers::Harddisk::ATAPIO {
      */
     class ATAPIODriver {
     public:
-        using Callback = void(*)(void* buffer, bool success);
-    public:
+        using Callback = void(*)(void* buffer, bool success) noexcept;
+
         /**
          * @brief Initializes the ATA PIO driver
          * 
@@ -67,7 +67,9 @@ namespace NOS::Drivers::Harddisk::ATAPIO {
          * @return true if read operation succeeded, false otherwise
          * @noexcept Does not throw exceptions
          */
-        bool read(void* target, std::uint32_t lba, std::uint8_t count) noexcept;
+        bool read(void* target, std::uintptr_t address, std::uint8_t count) noexcept;
+
+        bool read_sync(void* buffer, std::uintptr_t address, std::uint8_t count) noexcept;
 
         void readSync(
             void* buffer,
