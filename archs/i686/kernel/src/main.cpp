@@ -140,8 +140,17 @@ void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info) noexcept {
 
 	NOS::Drivers::Harddisk::ATAPIO::g_ataDriver.init();
 	char* buff = new char[1024]{};
-	NOS::Drivers::Harddisk::ATAPIO::g_ataDriver.readSync(buff, 0, 512);
+	IO::kprintf("Reading first 512 bytes of disk...\r\n");
+	NOS::Drivers::Harddisk::ATAPIO::g_ataDriver.readSync(buff, 0, 16);
+	IO::kprintf("Read completed!\r\n");
 
+	for (std::size_t i = 0; i < 16; ++i) {
+		IO::kprintf("%02X ", static_cast<std::uint8_t>(buff[i]));
+		if ((i + 1) % 16 == 0) {
+			IO::kprintf("\r\n");
+		}
+	}
+/*
 	IO::kprintf("Read first 512 bytes of disk:\r\n");
 	for (std::size_t i = 0; i < 512; ++i) {
 		IO::kprintf("%02X ", static_cast<std::uint8_t>(buff[i]));
@@ -150,8 +159,7 @@ void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info) noexcept {
 		}
 	}
 	delete[] buff;
-
-	asm("hlt\n");
+	*/
 
 	if (true) {
 		ISR::RegisterHandler(0x21, []([[maybe_unused]] ISR::InterruptState* regs) {

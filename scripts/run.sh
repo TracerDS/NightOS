@@ -25,7 +25,7 @@ qemu-system-i386 \
     $args \
     -m 4G \
     -vga virtio \
-    -cdrom $target \
+    -hda $target \
     -D "$SCRIPT_DIR/../logs/qemu.log" \
     -d int,cpu_reset \
     -monitor stdio \

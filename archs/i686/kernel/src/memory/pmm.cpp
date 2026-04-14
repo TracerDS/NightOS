@@ -7,6 +7,7 @@
 #include <logger.hpp>
 
 #include <utility>
+#include <limits>
 
 extern std::uint8_t __kernel_post_boot_start__[];
 extern std::uint8_t __kernel_start__[];
@@ -16,14 +17,35 @@ namespace NOS::Memory {
     PhysicalMemoryAllocator g_pmmAllocator{};
 
     auto remap_memory_sections(multiboot_info* mb_info) noexcept {
+        if (!mb_info) {
+            return std::make_pair<std::uintptr_t, std::uintptr_t>(0, 0);
+        }
+
+        if (
+            !Utils::Bits::is_set(mb_info->flags, MULTIBOOT_INFO_MEM_MAP) ||
+            mb_info->mmap_addr == 0 ||
+            mb_info->mmap_length == 0
+        ) {
+            return std::make_pair<std::uintptr_t, std::uintptr_t>(0, 0);
+        }
+
+        constexpr std::uint64_t PHYS_LIMIT_EXCLUSIVE = 0x1'0000'0000ULL;
+
         // Compute end‐of‐buffer pointer:
-        std::uintptr_t buffer_end = mb_info->mmap_addr + mb_info->mmap_length;
+        std::uintptr_t mmap_addr = static_cast<std::uintptr_t>(mb_info->mmap_addr);
+        std::uintptr_t mmap_length = static_cast<std::uintptr_t>(mb_info->mmap_length);
+        std::uintptr_t buffer_end = mmap_addr;
+        if (mmap_addr > std::numeric_limits<std::uintptr_t>::max() - mmap_length) {
+            buffer_end = std::numeric_limits<std::uintptr_t>::max();
+        } else {
+            buffer_end = mmap_addr + mmap_length;
+        }
 
         std::uint64_t nextAvailAddr = 0;
         auto freeMemBeg = nextAvailAddr;
 
         const auto EntryLoopFunc = [&](multiboot_memory_map_t* entry) {
-            [[maybe_unused]] std::uint64_t base = entry->addr;
+            std::uint64_t base = entry->addr;
             std::uint64_t length = entry->len;
             std::uint32_t type = entry->type;
 
@@ -47,23 +69,39 @@ namespace NOS::Memory {
             if (type != MULTIBOOT_MEMORY_AVAILABLE)
                 return;
 
-            // Ignore memory above 4GB
-            if (base > 0xFFFFFFFF) 
+            // Ignore memory above 4GB.
+            if (base >= PHYS_LIMIT_EXCLUSIVE)
                 return;
 
-            // Clamp length to not exceed 4GB
-            if (base + length > 0xFFFFFFFF) {
-                length = 0xFFFFFFFF - base;
+            std::uint64_t endExclusive;
+            if (length > std::numeric_limits<std::uint64_t>::max() - base) {
+                endExclusive = std::numeric_limits<std::uint64_t>::max();
+            } else {
+                endExclusive = base + length;
             }
+
+            if (endExclusive > PHYS_LIMIT_EXCLUSIVE) {
+                endExclusive = PHYS_LIMIT_EXCLUSIVE;
+            }
+
+            if (endExclusive <= base) {
+                return;
+            }
+
+            length = endExclusive - base;
 
             if (freeMemBeg == 0) {
                 nextAvailAddr = base;
                 freeMemBeg = base;
             }
 
+            auto endForMark = endExclusive == PHYS_LIMIT_EXCLUSIVE
+                ? static_cast<std::uintptr_t>(0xFFFFFFFFu)
+                : static_cast<std::uintptr_t>(endExclusive);
+
             Memory::g_pmmAllocator.mark_page_range(
                 static_cast<std::uintptr_t>(base),
-                static_cast<std::uintptr_t>(base + length),
+                endForMark,
                 false
             );
 
@@ -71,12 +109,29 @@ namespace NOS::Memory {
         };
 
         auto* mmap_entry = reinterpret_cast<multiboot_memory_map_t*>(mb_info->mmap_addr);
-        while(reinterpret_cast<std::uintptr_t>(mmap_entry) < buffer_end) {
+        while (reinterpret_cast<std::uintptr_t>(mmap_entry) < buffer_end) {
+            std::uint64_t current = reinterpret_cast<std::uintptr_t>(mmap_entry);
+            std::uint64_t mapEnd = static_cast<std::uint64_t>(buffer_end);
+
+            if (current + sizeof(multiboot_memory_map_t) > mapEnd) {
+                break;
+            }
+
+            // Entry size does not include its own size field.
+            std::uint64_t fullEntrySize =
+                static_cast<std::uint64_t>(mmap_entry->size) + sizeof(mmap_entry->size);
+            if (fullEntrySize < sizeof(multiboot_memory_map_t)) {
+                break;
+            }
+
+            if (current + fullEntrySize > mapEnd) {
+                break;
+            }
+
             EntryLoopFunc(mmap_entry);
 
             mmap_entry = reinterpret_cast<multiboot_memory_map_t*>(
-                reinterpret_cast<std::uint8_t*>(mmap_entry)
-                + mmap_entry->size + sizeof(mmap_entry->size)
+                static_cast<std::uintptr_t>(current + fullEntrySize)
             );
         }
 
@@ -142,16 +197,39 @@ namespace NOS::Memory {
         std::uintptr_t end,
         bool used
     ) noexcept {
-        std::uintptr_t addr = Utils::align_down(start, ByteUnits::KB4);
-        std::uintptr_t end_addr = Utils::align_up(end, ByteUnits::KB4);
+        std::uint64_t addr = static_cast<std::uint64_t>(start);
+        std::uint64_t end_addr = static_cast<std::uint64_t>(end);
+        constexpr std::uint64_t pageSize = ByteUnits::KB4;
+        std::uint64_t maxAddrExclusive =
+            static_cast<std::uint64_t>(m_bitmap.size()) * 8ULL * ByteUnits::KB4;
 
-        Logger::Log("[PMM] Marking page range: 0x%lX - 0x%lX as %s\r\n",
-            addr, end_addr, used ? "used" : "free"
+        if (addr >= maxAddrExclusive) {
+            return;
+        }
+
+        if (end_addr > maxAddrExclusive) {
+            end_addr = maxAddrExclusive;
+        }
+
+        if (end_addr <= addr) {
+            return;
+        }
+
+        addr = Utils::align_down(addr, pageSize);
+        end_addr = Utils::align_up(end_addr, pageSize);
+        if (end_addr > maxAddrExclusive) {
+            end_addr = maxAddrExclusive;
+        }
+
+        Logger::Log("[PMM] Marking page range: 0x%llX - 0x%llX as %s\r\n",
+            static_cast<unsigned long long>(addr),
+            static_cast<unsigned long long>(end_addr),
+            used ? "used" : "free"
         );
 
         while (addr < end_addr) {
-            mark_page(addr, used);
-            addr += ByteUnits::KB4;
+            mark_page(static_cast<std::uintptr_t>(addr), used);
+            addr += pageSize;
         }
     }
 

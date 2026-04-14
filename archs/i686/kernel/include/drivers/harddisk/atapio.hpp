@@ -19,7 +19,7 @@ namespace NOS::Drivers::Harddisk::ATAPIO {
 
     enum class Status : std::uint8_t {
         ERROR           = 1 << 0, // Error
-        DATA_REQUEST    = 1 << 3, // Data Request (gotowy do transferu)
+        DATA_REQUEST    = 1 << 3, // Data Request
         SERVICE_REQUEST = 1 << 4, // Overlapped Mode Service Request
         DRIVE_FAULT     = 1 << 5, // Drive Fault
         READY           = 1 << 6, // Ready
@@ -43,7 +43,9 @@ namespace NOS::Drivers::Harddisk::ATAPIO {
      */
     class ATAPIODriver {
     public:
-        using Callback = void(*)(void* buffer, bool success) noexcept;
+        using Callback = void(*)(void* buffer, std::size_t size, bool success) noexcept;
+        static constexpr std::size_t SECTOR_SIZE = 512;
+        static constexpr std::size_t MAX_SECTORS_PER_COMMAND = 255;
 
         /**
          * @brief Initializes the ATA PIO driver
@@ -61,15 +63,13 @@ namespace NOS::Drivers::Harddisk::ATAPIO {
          * Reads one or more sectors from the specified LBA address into the
          * target buffer using PIO mode.
          * 
-         * @param target Pointer to the destination buffer for read data
-         * @param lba Logical Block Address (sector number) to read from
-         * @param count Number of sectors to read
+         * @param buffer Pointer to the destination buffer for read data
+         * @param address Logical Block Address (sector number) to read from
+         * @param size Number of bytes to read
          * @return true if read operation succeeded, false otherwise
          * @noexcept Does not throw exceptions
          */
-        bool read(void* target, std::uintptr_t address, std::uint8_t count) noexcept;
-
-        bool read_sync(void* buffer, std::uintptr_t address, std::uint8_t count) noexcept;
+        bool read(void* buffer, std::uintptr_t address, std::uint32_t size) noexcept;
 
         void readSync(
             void* buffer,
@@ -100,6 +100,8 @@ namespace NOS::Drivers::Harddisk::ATAPIO {
          */
         bool write(const void* source, std::uint32_t lba, std::uint8_t count) noexcept;
     private:
+        void wait_delay() noexcept;
+
         /**
          * @brief Waits until the ATA device is not busy
          * 
@@ -109,7 +111,7 @@ namespace NOS::Drivers::Harddisk::ATAPIO {
          * @noexcept Does not throw exceptions
          * @private
          */
-        void wait_busy() noexcept;
+        bool wait_busy() noexcept;
 
         /**
          * @brief Waits for the ATA device to request data
@@ -120,15 +122,23 @@ namespace NOS::Drivers::Harddisk::ATAPIO {
          * @noexcept Does not throw exceptions
          * @private
          */
-        void wait_data_request() noexcept;
+        bool wait_data_request() noexcept;
 
-        void start_read(std::uint32_t address, std::uint32_t size) noexcept;
+        bool start_read(std::uint32_t address, std::uint8_t sectorCount) noexcept;
         
     private:
         struct {
             bool active = false;
             bool isAsync = false;
+
             std::uint8_t* buffer = nullptr;
+            std::uint8_t* currentBuffer = nullptr;
+            std::size_t sectorsLeft = 0;
+            std::size_t bytesRemaining = 0;
+
+            std::size_t size = 0;
+
+            alignas(2) std::uint8_t bounceBuffer[SECTOR_SIZE]{};
 
             // For sync mode
             volatile bool* syncCompleteFlag = nullptr;

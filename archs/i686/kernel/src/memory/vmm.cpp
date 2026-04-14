@@ -164,13 +164,47 @@ namespace NOS::Memory {
         );
 #endif
 
-        NodeHeader* header = reinterpret_cast<NodeHeader*>(
-            reinterpret_cast<std::uintptr_t>(ptr) - sizeof(NodeHeader)
-        );
+        auto ptrAddr = reinterpret_cast<std::uintptr_t>(ptr);
+        if (
+            ptrAddr < (heapStart + sizeof(NodeHeader)) ||
+            ptrAddr >= heapEnd
+        ) {
+            Logger::LogError("[VMM] Attempted free of pointer outside heap\r\n");
+            return;
+        }
+
+        NodeHeader* header = nullptr;
+        NodeHeader* current = head;
+        while (current) {
+            auto nodeAddr = reinterpret_cast<std::uintptr_t>(current);
+            if (nodeAddr < heapStart || nodeAddr >= heapEnd) {
+                Logger::LogError("[VMM] Heap metadata corruption detected\r\n");
+                return;
+            }
+
+            auto payloadAddr = nodeAddr + sizeof(NodeHeader);
+            if (payloadAddr == ptrAddr) {
+                header = current;
+                break;
+            }
+
+            current = current->next;
+        }
+
+        if (!header) {
+            Logger::LogError("[VMM] Attempted free of non-allocated pointer\r\n");
+            return;
+        }
+
+        if (header->isFree) {
+            Logger::LogError("[VMM] Double free detected\r\n");
+            return;
+        }
+
         header->isFree = true;
 
         // Coalesce adjacent free blocks
-        NodeHeader* current = head;
+        current = head;
         while (current && current->next) {
             if (current->isFree && current->next->isFree) {
                 current->size += sizeof(NodeHeader) + current->next->size;

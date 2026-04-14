@@ -1,10 +1,6 @@
 #include <interfaces/streams/serial.hpp>
 #include <io.hpp>
 
-#ifdef __NOS_SERIAL_DEBUG__
-#   include <klibc/cassert>
-#endif
-
 #include <utility>
 
 namespace NOS::Serial {
@@ -129,36 +125,32 @@ namespace NOS::Serial {
         return Utils::Bits::is_set(read, LSR::TH_REGISTER_EMPTY);
     }
     
-#ifdef __NOS_SERIAL_DEBUG__
     static constexpr std::uint64_t __gs_max_wait_timeout__ = 10'0000;
-#endif
 
-    void __serial_wait_until_ready_to_read__(Port port) noexcept {
-#ifdef __NOS_SERIAL_DEBUG__
-        static std::uint64_t __gs_timeout__ = 0;
-#endif
+    bool __serial_wait_until_ready_to_read__(Port port) noexcept {
+        std::uint64_t timeout = 0;
         // Wait until data is ready
         while (!__serial_is_ready_to_read__(port)) {
-#ifdef __NOS_SERIAL_DEBUG__
-            ++__gs_timeout__;
-            assert(__gs_timeout__ < __gs_max_wait_timeout__); // Ensure we don't loop indefinitely
-#endif
+            ++timeout;
+            if (timeout >= __gs_max_wait_timeout__) {
+                IO::kprintf("Serial: timed out waiting to read from port 0x%X\r\n", port);
+                return false;
+            }
         }
-        __gs_timeout__ = 0;
+        return true;
     }
 
-    void __serial_wait_until_ready_to_write__(Port port) noexcept {
-#ifdef __NOS_SERIAL_DEBUG__
-        static std::uint64_t __gs_timeout__ = 0;
-#endif
+    bool __serial_wait_until_ready_to_write__(Port port) noexcept {
+        std::uint64_t timeout = 0;
         // Wait until data is ready
         while (!__serial_is_ready_to_write__(port)) {
-#ifdef __NOS_SERIAL_DEBUG__
-            ++__gs_timeout__;
-            assert(__gs_timeout__ < __gs_max_wait_timeout__); // Ensure we don't loop indefinitely
-#endif
+            ++timeout;
+            if (timeout >= __gs_max_wait_timeout__) {
+                IO::kprintf("Serial: timed out waiting to write to port 0x%X\r\n", port);
+                return false;
+            }
         }
-        __gs_timeout__ = 0;
+        return true;
     }
 
     Serial g_serial{};
@@ -197,11 +189,15 @@ namespace NOS::Serial {
     }
 
     std::uint8_t Serial::read_byte(Port port) noexcept {
-        __serial_wait_until_ready_to_read__(port);
+        if (!__serial_wait_until_ready_to_read__(port)) {
+            return 0;
+        }
         return __kernel_serial_read_byte__(port);
     }
     std::uint16_t Serial::read_word(Port port) noexcept {
-        __serial_wait_until_ready_to_read__(port);
+        if (!__serial_wait_until_ready_to_read__(port)) {
+            return 0;
+        }
 
         if (!__serial_is_com__(port)) {
             return __kernel_serial_read_word__(port);
@@ -211,26 +207,34 @@ namespace NOS::Serial {
         return high << 8 | low;
     }
     std::uint32_t Serial::read_dword(Port port) noexcept {
-        __serial_wait_until_ready_to_read__(port);
+        if (!__serial_wait_until_ready_to_read__(port)) {
+            return 0;
+        }
         
         if (!__serial_is_com__(port)) {
             return __kernel_serial_read_dword__(port);
         }
-        std::uint8_t low = __kernel_serial_read_word__(port);
-        std::uint8_t high = __kernel_serial_read_word__(port);
-        return high << 16 | low;
+        std::uint16_t low = __kernel_serial_read_word__(port);
+        std::uint16_t high = __kernel_serial_read_word__(port);
+        return (static_cast<std::uint32_t>(high) << 16) | low;
     }
     
     void Serial::write_byte(Port port, std::uint8_t data) noexcept {
-        __serial_wait_until_ready_to_write__(port);
+        if (!__serial_wait_until_ready_to_write__(port)) {
+            return;
+        }
         __kernel_serial_write_byte__(port, data);
     }
     void Serial::write_word(Port port, std::uint16_t data) noexcept {
-        __serial_wait_until_ready_to_write__(port);
+        if (!__serial_wait_until_ready_to_write__(port)) {
+            return;
+        }
         __kernel_serial_write_word__(port, data);
     }
     void Serial::write_dword(Port port, std::uint32_t data) noexcept {
-        __serial_wait_until_ready_to_write__(port);
+        if (!__serial_wait_until_ready_to_write__(port)) {
+            return;
+        }
         __kernel_serial_write_dword__(port, data);
     }
 }
