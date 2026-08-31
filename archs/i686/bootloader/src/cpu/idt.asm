@@ -15,3 +15,13 @@ __kernel_load_IDT__:
         xor eax, eax
         ret
     .end:
+
+global __kernel_are_interrupts_enabled__:function (__kernel_are_interrupts_enabled__.end - __kernel_are_interrupts_enabled__.start)
+__kernel_are_interrupts_enabled__:
+    .start:
+        pushfd
+        pop eax
+        shr eax, 9
+        and eax, 1
+        ret
+    .end:

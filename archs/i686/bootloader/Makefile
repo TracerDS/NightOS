@@ -23,7 +23,7 @@ ASFLAGS := -f elf32 -g -F dwarf -D__MULTIBOOT__
 LDFLAGS := -L$(OPT_DIR)/../lib/gcc/$(CROSS_PREFIX)/$(GCC_VERSION) -r
 ARFLAGS := rcs
 
-SRC_FILES := $(shell find $(SRC_DIR) -type f -name *.$(SRC_EXT))
+SRC_FILES := $(shell find $(SRC_DIR) -type f -name '*.$(SRC_EXT)')
 OUT_FILES := $(patsubst $(SRC_DIR)/%.$(SRC_EXT),$(OUT_DIR)/%.$(OUT_EXT),$(SRC_FILES))
 
 BIN_PATH := $(OUT_DIR)/bootloader.$(BIN_EXT)
@@ -34,11 +34,11 @@ $(BIN_PATH): $(OUT_FILES)
 	$(LD) $(LDFLAGS) $^ -o $(BIN_PATH)
 
 $(OUT_DIR)/%.$(OUT_EXT): $(SRC_DIR)/%.$(SRC_EXT)
-	@mkdir -p $(OUT_DIR)
+	@mkdir -p $(dir $@)
 	$(AS) $(ASFLAGS) $< -o $@
 
 clean:
-	rm -rf ./$(OUT_DIR)/*
+	rm -rf ./$(OUT_DIR)
 
 info:
 	@echo "ARCH_NAME: $(ARCH_NAME)"
