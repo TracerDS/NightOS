@@ -8,9 +8,13 @@ if [ -z "$target" ]; then
 fi
 
 SCRIPT_DIR=$(dirname "$0")
+BUILD_DIR="$SCRIPT_DIR/../archs/$target/build"
+RAW_NAME="${target%.*}"
+DISK_PATH="$RAW_NAME"_disk.img
 
-if [ -f "$SCRIPT_DIR/../archs/$target/build/$target.iso" ]; then
-    target="$SCRIPT_DIR/../archs/$target/build/$target.iso"
+if [ -f "$BUILD_DIR/$target.iso" ]; then
+    target="$BUILD_DIR/$target.iso"
+    DISK_PATH="$BUILD_DIR/$RAW_NAME"_disk.img
 fi
 
 args=${@:2}
@@ -25,7 +29,8 @@ qemu-system-i386 \
     $args \
     -m 4G \
     -vga virtio \
-    -hda $target \
+    -drive file=$target,format=raw,media=disk,index=0 \
+    -drive file=$DISK_PATH,format=raw,media=disk,index=1 \
     -D "$SCRIPT_DIR/../logs/qemu.log" \
     -d int,cpu_reset \
     -monitor stdio \

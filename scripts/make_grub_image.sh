@@ -18,3 +18,4 @@ mkdir -p $isodir_path/boot/grub
 cp $2 $isodir_path/boot/$iso_name.bin
 cp config/grub/grub.$1.cfg $isodir_path/boot/grub/grub.cfg
 grub-mkrescue -o $raw_path_no_ext.iso $isodir_path
+qemu-img create -f raw "$raw_path_no_ext"_disk.img 64M

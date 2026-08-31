@@ -7,9 +7,11 @@ if [ -z "$target" ]; then
 fi
 
 SCRIPT_DIR=$(dirname "$0")
+BUILD_DIR="$SCRIPT_DIR/../archs/$target/build"
+RAW_NAME="${target%.*}"
 
-if [ -f "$SCRIPT_DIR/../archs/$target/build/$target.iso" ]; then
-    target="$SCRIPT_DIR/../archs/$target/build/$target.iso"
+if [ -f "$BUILD_DIR/$target.iso" ]; then
+    target="$BUILD_DIR/$target.iso"
 fi
 
 ./scripts/run.sh $target -s -S
