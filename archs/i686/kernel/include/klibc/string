@@ -103,9 +103,6 @@ namespace klibc {
                 // Check if its a constant expression
                 // and if the pointers are related
                 if (
-#ifdef __NOS_KERNEL_COMPILER_GCC__
-                    __builtin_constant_p(src < dest) &&
-#endif
                     dest > src &&
                     dest < (src + count)
                 ) {
@@ -143,7 +140,7 @@ namespace klibc {
             return dest;
         }
 
-        static constexpr char_type* compare(
+        static constexpr int compare(
             const char_type* dest,
             const char_type* src,
             std::size_t count
@@ -166,7 +163,7 @@ namespace klibc {
             return i;
         }
 
-        static constexpr char_type find(
+        static constexpr char_type* find(
             const char_type* src,
             std::size_t count,
             const char_type& what
@@ -826,7 +823,7 @@ namespace klibc {
             InputIt last
         ) noexcept {
             size_type index = pos - cbegin();
-            return insert_range_at(
+            return _m_insert_range_at(
                 index,
                 first,
                 last,
