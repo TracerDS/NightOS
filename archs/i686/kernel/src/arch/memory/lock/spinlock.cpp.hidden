@@ -1,0 +1,20 @@
+#include <arch/memory/lock/spinlock.hpp>
+
+namespace NOS::Memory::Lock {
+    void Spinlock::lock() noexcept {
+        while (!try_lock()) {
+            asm volatile("pause");
+        }   
+    }
+
+    void Spinlock::unlock() noexcept {
+        m_lock.clear(std::memory_order_release);
+    }
+
+    bool Spinlock::try_lock() noexcept {
+        return !m_lock.test_and_set(std::memory_order_acquire);
+    }
+
+    LockGuard::LockGuard(Spinlock& lock) noexcept : m_lock(lock) { m_lock.lock(); }
+    LockGuard::~LockGuard() noexcept { m_lock.unlock(); }
+}
