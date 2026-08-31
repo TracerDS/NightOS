@@ -1,0 +1,28 @@
+CompileFlags:
+  Compiler: /opt/cross/bin/i686-elf-g++
+  Add:
+    - -std=c++2c
+    - -ffreestanding
+    - -fno-exceptions
+    - -fno-rtti
+    - -fno-eliminate-unused-debug-types
+    - -nostdlib
+    - -nostartfiles
+    - -nodefaultlibs
+    - -m32
+    - -mno-red-zone
+    - -march=i686
+    - -masm=intel
+    - -Iarchs/i686/kernel/include
+    - -D__MULTIBOOT__
+    - -D_DEBUG
+    - -D__NOS_KERNEL_DEBUG__
+    - -Wno-literal-suffix
+    - -Wno-user-defined-literals
+
+If:
+  PathMatch: .*/archs/[^/]+/kernel/include/libk/.*
+
+Diagnostics:
+  Suppress:
+    - user-defined-literals

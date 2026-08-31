@@ -1,3 +1,20 @@
 {
-    "C_Cpp.loggingLevel": "Debug"
+    "C_Cpp.loggingLevel": "Debug",
+    "C_Cpp.intelliSenseEngine": "disabled",
+    "C_Cpp.autocomplete": "disabled",
+    "clangd.arguments": [
+        "--background-index",
+        "--completion-style=detailed",
+        "--header-insertion=never",
+        "--query-driver=/opt/cross/bin/*-elf-*"
+    ],
+    "clangd.path": "/usr/bin/clangd",
+    "[cpp]": {
+        "explicitFolding.rules": [
+            {
+                "begin": "^\\s*#pragma region",
+                "end": "^\\s*#pragma endregion"
+            }
+        ]
+    }
 }

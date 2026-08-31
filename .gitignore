@@ -3,12 +3,16 @@
 *.bin
 *.o
 *.sym
+*.img
 
 # Ignore all "out" folders
 /**/out/
 
 # Ignore isodir for the OS
 isodir/
+
+# Ignore clangd cache
+.cache/
 
 # Ignore logs
 logs/
