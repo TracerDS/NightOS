@@ -1,6 +1,6 @@
 #pragma once
 
-#include <init.hpp>
+#include <core/init.hpp>
 
 extern "C" {
 #   include <klibc/string.h>
@@ -17,4 +17,5 @@ namespace klibc {
     using ::memset;
     using ::memset_explicit;
     using ::memcpy;
+    using ::memmove;
 }

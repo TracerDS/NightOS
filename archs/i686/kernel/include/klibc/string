@@ -1,54 +1,82 @@
 #pragma once
 
+#include <algorithm>
+#include <core/init.hpp>
+
 #include <compare>
 #include <type_traits>
+#include <iterator>
 
-#include <klibc/memory>
+#include <klibc/ranges>
 #include <klibc/cstring>
+#include <klibc/memory>
+#include <cstdint>
 
-#include <memory>
-#include <string>
+#include <string_view>
 
 namespace klibc {
+    
     namespace detail {
         template <typename T>
         struct char_types {
             using int_type = unsigned long;
         };
+
+        template<class R, class T>
+        concept container_compatible_range =
+            std::ranges::input_range<R> &&
+            std::convertible_to<std::ranges::range_reference_t<R>, T>;
+
+        template <class Traits, class = void>
+        struct comparison_category {
+            using type = std::weak_ordering;
+        };
+
+        template <class Traits>
+        struct comparison_category<Traits, std::void_t<typename Traits::comparison_category>> {
+            using type = typename Traits::comparison_category;
+        };
+
+        template <class Traits>
+        using comparison_category_t = typename comparison_category<Traits>::type;
     }
 
     template <class CharT>
     struct char_traits {
         using char_type = CharT;
-        using int_type = typename detail::char_types<CharT>::int_type;
+        using int_type = typename detail::char_types<char_type>::int_type;
 #if __cpp_lib_three_way_comparison
         using comparison_category = std::strong_ordering;
 #endif
 
         static constexpr void assign(char_type& dest, const char_type& src) noexcept {
             if (std::is_constant_evaluated()) {
-                klibc::construct_at(klibc::addressof(dest), src);
+                std::construct_at(std::addressof(dest), src);
             } else {
                 dest = src;
             }
         }
         
-        static constexpr void assign(
-            char_type& dest,
+        static constexpr char_type* assign(
+            char_type* dest,
             std::size_t count,
             char_type what
         ) noexcept {
             if (std::is_constant_evaluated()) {
                 for (std::size_t i = 0; i < count; ++i) {
-                    klibc::construct_at(dest + i, what);
+                    std::construct_at(std::addressof(dest[i]), what);
                 }
                 return dest;
             }
 
-            if constexpr (sizeof(CharT) == 1 && __is_trivial(CharT)) {
+            if constexpr (
+                sizeof(char_type) == 1 &&
+                std::is_trivially_default_constructible_v<char_type> &&
+                std::is_trivially_copyable_v<char_type>
+            ) {
                 if (count > 0) {
                     std::uint8_t c;
-                    klibc::memcpy(&c, klibc::addressof(what), 1);
+                    klibc::memcpy(&c, std::addressof(what), 1);
                     klibc::memset(dest, c, count);
                 }
             } else {
@@ -72,11 +100,12 @@ namespace klibc {
                 return dest;
             
             if (std::is_constant_evaluated()) {
-#ifdef __NOS_KERNEL_COMPILER_GCC__
                 // Check if its a constant expression
                 // and if the pointers are related
                 if (
+#ifdef __NOS_KERNEL_COMPILER_GCC__
                     __builtin_constant_p(src < dest) &&
+#endif
                     dest > src &&
                     dest < (src + count)
                 ) {
@@ -89,7 +118,6 @@ namespace klibc {
                     // not overlapping, copy forwards
                     copy(dest, src, count);
                 }
-#endif
                 return dest;
             }
             klibc::memmove(dest, src, count * sizeof(char_type));
@@ -107,7 +135,7 @@ namespace klibc {
             
             if (std::is_constant_evaluated()) {
                 for (std::size_t i = 0; i < count; ++i) {
-                    klibc::construct_at(dest + i, src[i]);
+                    std::construct_at(std::addressof(dest[i]), src[i]);
                 }
             } else {
                 klibc::memcpy(dest, src, count * sizeof(char_type));
@@ -181,30 +209,2570 @@ namespace klibc {
         }
     };
 
-    template <typename T>
-    class allocator {};
-
     template <
         class CharT,
-        class Traits,
-        class Allocator
+        class Traits = char_traits<CharT>,
+        class Allocator = allocator<CharT>
     >
     class basic_string {
     public:
-        static_assert(std::is_same_v<CharT, typename Traits::char_type>);
-        static_assert(std::is_same_v<CharT, typename Allocator::value_type>);
-
-        using traits_type     = Traits;
-        using value_type      = typename traits_type::char_type;
-        using allocator_type  = Allocator;
-        using size_type       = typename allocator_type::size_type;
-        using difference_type = typename allocator_type::difference_type;
-        using reference       = typename allocator_type::reference;
+        using traits_type            = Traits;
+        using value_type             = typename traits_type::char_type;
+        using allocator_type         = Allocator;
+        using size_type              = typename allocator_traits<allocator_type>::size_type;
+        using difference_type        = typename allocator_traits<allocator_type>::difference_type;
+        using reference              = value_type&;
+        using const_reference        = const value_type&;
+        using pointer                = typename allocator_traits<allocator_type>::pointer;
+        using const_pointer          = typename allocator_traits<allocator_type>::const_pointer;
+        using iterator               = pointer;
+        using const_iterator         = const_pointer;
+        using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+        using reverse_iterator       = std::reverse_iterator<iterator>;
 
         static constexpr size_type npos = static_cast<size_type>(-1);
     protected:
 
     public:
-        explicit basic_string
+#pragma region Public functions
+        constexpr basic_string() noexcept(noexcept(allocator_type()))
+            : basic_string(allocator_type())
+        {}
+
+        constexpr explicit basic_string(const allocator_type& alloc) noexcept
+            : m_allocator(alloc)
+        {
+            Tag::set_stack_size(m_stack, 0);
+            m_stack.data[0] = value_type{};
+        }
+
+        constexpr basic_string(
+            size_type count,
+            value_type chr,
+            const allocator_type& alloc = allocator_type()
+        ) noexcept : m_allocator(alloc)
+        {
+            if (count <= StackMeta::capacity) {
+                traits_type::assign(m_stack.data, count, chr);
+                Tag::set_stack_size(m_stack, count);
+                m_stack.data[count] = value_type{};
+            } else {
+                pointer p = m_allocator.allocate(count + 1);
+                traits_type::assign(p, count, chr);
+                p[count] = value_type{};
+                m_heap.data = p;
+                m_heap.size = count;
+                Tag::set_heap_capacity(m_heap, count);
+            }
+        }
+
+        template <class InputIt>
+        constexpr basic_string(
+            InputIt first,
+            InputIt last,
+            const allocator_type& alloc = allocator_type()
+        ) noexcept : m_allocator(alloc)
+        {
+            _m_assign_range(first, last, std::iterator_traits<InputIt>::iterator_category());
+        }
+
+        template <detail::container_compatible_range<value_type> R>
+        constexpr basic_string(
+            from_range_t,
+            R&& range,
+            const Allocator& allocator = Allocator()
+        ) noexcept
+            : m_allocator(allocator)
+        {
+            Tag::set_stack_size(m_stack, 0);
+            m_stack.data[0] = value_type{};
+            assign_from_range(std::forward<R>(range));
+        }
+        
+        constexpr basic_string(
+            const value_type* string,
+            size_type count,
+            const allocator_type& alloc = allocator_type()
+        ) noexcept
+            : m_allocator(alloc)
+        {
+            _m_assign_from(string, count);
+        }
+
+        constexpr basic_string(
+            const value_type* string,
+            const allocator_type& alloc = allocator_type()
+        ) noexcept
+            : basic_string(string, traits_type::length(string), alloc)
+        {}
+
+        constexpr basic_string(std::nullptr_t) = delete;
+
+        constexpr basic_string(const basic_string& other) noexcept
+            : basic_string(other, other.m_allocator)
+        {}
+
+        constexpr basic_string(basic_string&& other) noexcept
+            : m_allocator(std::move(other.m_allocator))
+        {
+            if (Tag::_m_is_heap(other.m_stack)) {
+                m_heap = other.m_heap;
+                Tag::set_stack_size(other.m_stack, 0);
+                other.m_stack.data[0] = value_type{};
+            } else {
+                m_stack = other.m_stack;
+            }
+        }
+
+        constexpr basic_string(
+            const basic_string& other,
+            const allocator_type& alloc
+        ) noexcept
+            : m_allocator(alloc)
+        {
+            _m_assign_from(other.data(), other.size());
+        }
+
+        constexpr basic_string(
+            basic_string&& other,
+            const allocator_type& alloc
+        ) noexcept
+            : m_allocator(alloc)
+        {
+            if (other._m_is_heap()) {
+                if (m_allocator == other.m_allocator) {
+                    // Same allocator: steal the buffer, O(1).
+                    m_heap = other.m_heap;
+                    Tag::set_stack_size(other.m_stack, 0);
+                    other.m_stack.data[0] = value_type{};
+                    return;
+                }
+                // Different allocators: buffer was obtained from a foreign
+                // allocator, cannot be freed by ours - must copy instead.
+                _m_assign_from(other.data(), other.size());
+                other._m_release();
+                Tag::set_stack_size(other.m_stack, 0);
+                other.m_stack.data[0] = value_type{};
+            } else {
+                m_stack = other.m_stack;
+            }
+        }
+
+        constexpr basic_string(
+            const basic_string& other,
+            size_type pos,
+            const allocator_type& alloc = allocator_type()
+        ) noexcept
+            : basic_string(other, pos, npos, alloc) {}
+
+        constexpr basic_string(
+            basic_string&& other,
+            size_type pos,
+            const allocator_type& alloc = allocator_type()
+        ) noexcept
+            : basic_string(std::move(other), pos, npos, alloc)
+        {}
+
+        constexpr basic_string(
+            const basic_string& other,
+            size_type pos,
+            size_type count,
+            const allocator_type& alloc = allocator_type()
+        ) noexcept
+            : m_allocator(alloc)
+        {
+            assert(pos <= other.size() && "basic_string: pos out of range");
+            size_type n = std::min(count, other.size() - pos);
+            _m_assign_from(other.data() + pos, n);
+        }
+
+        constexpr basic_string(
+            basic_string&& other,
+            size_type pos,
+            size_type count,
+            const allocator_type& alloc = allocator_type()
+        ) noexcept
+            : m_allocator(alloc)
+        {
+            assert(pos <= other.size() && "basic_string: pos out of range");
+            size_type n = std::min(count, other.size() - pos);
+
+            // Whole-string "substring" starting at 0: eligible for the same
+            // ownership-transfer fast path as the plain move ctor.
+            if (
+                pos == 0 && n == other.size() && other._m_is_heap() &&
+                m_allocator == other.m_allocator
+            ) {
+                m_heap = other.m_heap;
+                Tag::set_stack_size(other.m_stack, 0);
+                other.m_stack.data[0] = value_type{};
+                return;
+            }
+
+            // Otherwise it's a genuine slice: must copy the requested range
+            // regardless of source mode, since the source's allocation (if
+            // any) covers more than just [pos, pos+n).
+            _m_assign_from(other.data() + pos, n);
+            other._m_release();
+            Tag::set_stack_size(other.m_stack, 0);
+            other.m_stack.data[0] = value_type{};
+        }
+
+        constexpr basic_string(
+            std::initializer_list<value_type> list,
+            const allocator_type& allocator = allocator_type()
+        ) noexcept
+            : basic_string(list.begin(), list.end(), allocator)
+        {}
+
+        constexpr ~basic_string() noexcept { _m_release(); }
+
+        constexpr basic_string& operator=(const basic_string& other) noexcept {
+            if (this == other)
+                return *this;
+
+            _m_release();
+            if (other._m_is_heap()) {
+                m_heap = other.m_heap;
+                Tag::set_stack_size(other.m_stack, 0);
+                other.m_stack.data[0] = value_type{};
+            } else {
+                m_stack = other.m_stack;
+            }
+            return *this;
+        }
+        
+        constexpr basic_string& operator=(basic_string&& other) noexcept {
+            if (this == &other)
+                return *this;
+            
+            if (_m_is_heap())
+                m_allocator.deallocate(m_heap.m_data, Tag::get_heap_capacity(m_heap) + 1);
+
+            if (other._m_is_heap()) {
+                m_heap = other.m_heap;
+                Tag::set_stack_size(other.m_stack, 0);
+            } else {
+                m_stack = other.m_stack;
+            }
+            return *this;
+        }
+
+        constexpr basic_string& operator=(const value_type* string) noexcept {
+            size_type n = traits_type::length(string);
+
+            // Guard the case where string aliases our own buffer's storage;
+            // _m_release() must not run before we've read from string.
+            if (!_m_is_heap() && n <= StackMeta::capacity) {
+                // Safe to overwrite in place: source is either foreign memory
+                // or the same short buffer being reassigned to itself/a slice
+                // of itself
+                value_type tmp[StackMeta::capacity + 1];
+                traits_type::copy(tmp, string, n);
+                tmp[n] = value_type{};
+                _m_release();
+                traits_type::copy(m_stack.data, tmp, n);
+                Tag::set_stack_size(m_stack, n);
+                m_stack.data[n] = value_type{};
+                return *this;
+            }
+
+            _m_release();
+            _m_assign_from(string, n);
+            return *this;
+        }
+
+        constexpr basic_string& operator=(value_type chr) noexcept {
+            _m_release();
+            m_stack.data[0] = chr;
+            Tag::set_stack_size(m_stack, 1);
+            m_stack.data[1] = value_type{};
+            return *this;
+        }
+
+        constexpr basic_string& operator=(std::initializer_list<value_type> list) noexcept {
+            _m_release();
+            _m_assign_from(list.begin(), static_cast<size_type>(list.size()));
+            return *this;
+        }
+
+        template <class StringViewLike> requires (
+            std::is_convertible_v<
+                const StringViewLike&,
+                std::basic_string_view<value_type, traits_type>
+            > &&
+            !std::is_convertible_v<const StringViewLike&, const_pointer>
+        )
+        constexpr basic_string& operator=(const StringViewLike& string) noexcept {
+            std::basic_string_view<value_type, traits_type> view = string;
+            _m_release();
+            _m_assign_from(view.data(), view.size());
+            return *this;
+        }
+
+        constexpr basic_string& operator=(std::nullptr_t) = delete;
+
+        constexpr basic_string& assign(const basic_string& str) noexcept {
+            return *this = str;
+        }
+
+        constexpr basic_string& assign(basic_string&& string) noexcept {
+            return *this = std::move(string);
+        }
+
+        constexpr basic_string& assign(size_type count, value_type chr) noexcept {
+            clear();
+            resize(chr, count);
+            return *this;
+        }
+
+        constexpr basic_string& assign(const value_type* string, size_type count) noexcept {
+            if (count <= StackMeta::capacity) {
+                value_type tmp[StackMeta::capacity + 1];
+                traits_type::copy(tmp, string, count);
+                tmp[count] = value_type{};
+                _m_release();
+                traits_type::copy(m_stack.data, tmp, count);
+                Tag::set_stack_size(m_stack, count);
+                m_stack.data[count] = value_type{};
+                return *this;
+            }
+
+            pointer p = m_allocator.allocate(count + 1);
+            traits_type::copy(p, string, count);
+            p[count] = value_type{};
+            _m_release();
+            m_heap.data = p;
+            m_heap.size = count;
+            Tag::set_heap_capacity(m_heap, count);
+            return *this;
+        }
+
+        constexpr basic_string& assign(const value_type* s) noexcept {
+            return assign(s, traits_type::length(s));
+        }
+
+        template <class StringView>
+        constexpr basic_string& assign(const StringView& string) noexcept {
+            std::basic_string_view<value_type, traits_type> view = string;
+            return assign(view.data(), view.size());
+        }
+        
+        template <class StringView>
+        constexpr basic_string& assign(
+            const StringView& string,
+            size_type pos,
+            size_type count = npos
+        ) noexcept {
+            std::basic_string_view<value_type, traits_type> view = string;
+            return assign(view.substr(pos, count));
+        }
+
+        constexpr basic_string& assign(
+            const basic_string& string,
+            size_type pos,
+            size_type count = npos
+        ) noexcept {
+            return assign(
+                std::basic_string_view<value_type, traits_type>(string).substr(pos, count)
+            );
+        }
+
+        template <typename InputIt>
+        constexpr basic_string& assign(InputIt first, InputIt last) noexcept {
+            return assign(basic_string(first, last, get_allocator()));
+        }
+
+        constexpr basic_string& assign(std::initializer_list<value_type> list) noexcept {
+            return assign(list.begin(), list.size());
+        }
+
+        template <detail::container_compatible_range<value_type> R>
+        constexpr basic_string& assign_range(R&& range) noexcept {
+            return assign(basic_string(
+                from_range,
+                std::forward<R>(range),
+                get_allocator()
+            ));
+        }
+
+        constexpr allocator_type get_allocator() const noexcept { return m_allocator; }
+
+        constexpr reference at(size_type pos) noexcept {
+            assert(pos < size() && "basic_string: pos out of range");
+            return data()[pos];
+        }
+        constexpr const_reference at(size_type pos) const noexcept {
+            assert(pos < size() && "basic_string: pos out of range");
+            return data()[pos];
+        }
+
+        constexpr reference operator[](size_type pos) noexcept {
+            return data()[pos];
+        }
+        constexpr const_reference operator[](size_type pos) const noexcept {
+            return data()[pos];
+        }
+
+        constexpr reference front() noexcept {
+            assert(!empty() && "basic_string: front() called on empty string");
+            return operator[](0);
+        }
+        constexpr const_reference front() const noexcept {
+            assert(!empty() && "basic_string: front() called on empty string");
+            return operator[](0);
+        }
+
+        constexpr reference back() noexcept {
+            assert(!empty() && "basic_string: back() called on empty string");
+            return operator[](size() - 1);
+        }
+        constexpr const_reference back() const noexcept {
+            assert(!empty() && "basic_string: back() called on empty string");
+            return operator[](size() - 1);
+        }
+        
+        constexpr pointer data() noexcept {
+            return _m_is_heap() ? m_heap.data : m_stack.data;
+        }
+        constexpr const_pointer data() const noexcept {
+            return _m_is_heap() ? m_heap.data : m_stack.data;
+        }
+        constexpr const_pointer c_str() const noexcept { return data(); }
+
+        constexpr operator std::basic_string_view<value_type, traits_type>() const noexcept {
+            return std::basic_string_view<value_type, traits_type>(data(), size());
+        }
+        
+        constexpr iterator begin() noexcept { return data(); }
+        constexpr const_iterator begin() const noexcept { return cbegin(); }
+        constexpr const_iterator cbegin() const noexcept { return data(); }
+        
+        constexpr iterator end() noexcept { return data() + size(); }        
+        constexpr const_iterator end() const noexcept { return cend(); }        
+        constexpr const_iterator cend() const noexcept { return data() + size(); }
+
+        constexpr reverse_iterator rbegin() noexcept {
+            return reverse_iterator(end());
+        }
+        constexpr const_reverse_iterator rbegin() const noexcept {
+            return crbegin();
+        }
+        constexpr const_reverse_iterator crbegin() const noexcept {
+            return const_reverse_iterator(cend());
+        }
+        
+        constexpr reverse_iterator rend() noexcept {
+            return reverse_iterator(end());
+        }
+        constexpr const_reverse_iterator rend() const noexcept {
+            return crend();
+        }
+        constexpr const_reverse_iterator crend() const noexcept {
+            return const_reverse_iterator(cend());
+        }
+
+        constexpr bool empty() const noexcept { return cbegin() == cend(); }
+
+        constexpr size_type size() const noexcept {
+            return _m_is_heap() ? m_heap.size : Tag::get_stack_size(m_stack);
+        }
+        constexpr size_type length() const noexcept { return size(); }
+
+        constexpr size_type max_size() const noexcept {
+            // -1 for null terminator
+            return (std::numeric_limits<size_type>::max() >> 1) - 1;
+        }
+
+        constexpr void reserve(size_type newCapacity) noexcept {
+            assert(
+                newCapacity <= max_size() &&
+                "basic_string::reserve: requested capacity exceeds max_size()"
+            );
+
+            if (newCapacity <= capacity())
+                return; // already sufficient; reserve() never shrinks
+
+            size_type n = size();
+            pointer p = m_allocator.allocate(newCapacity + 1);
+            traits_type::copy(p, data(), n);
+            p[n] = value_type{};
+
+            _m_release(); // safe: data() was already fully copied into p above
+            m_heap.data = p;
+            m_heap.size = n;
+            Tag::set_heap_capacity(m_heap, newCapacity);
+        }
+
+        constexpr size_type capacity() const noexcept {
+            return _m_is_heap() ? Tag::get_heap_capacity(m_heap) : StackMeta::capacity;
+        }
+
+        constexpr void shrink_to_fit() noexcept {
+            if (!_m_is_heap())
+                return; // fixed-size union: nothing to shrink in short mode
+
+            size_type n = m_heap.size;
+
+            if (n <= StackMeta::capacity) {
+                // Demote to short mode.
+                pointer old = m_heap.data;
+                size_type oldCap = Tag::get_heap_capacity(m_heap);
+                value_type tmp[StackMeta::capacity + 1];
+                traits_type::copy(tmp, old, n);
+                tmp[n] = value_type{};
+
+                m_allocator.deallocate(old, oldCap + 1);
+                traits_type::copy(m_stack.data, tmp, n);
+                Tag::set_stack_size(m_stack, n);
+                m_stack.data[n] = value_type{};
+                return;
+            }
+
+            if (Tag::get_heap_capacity(m_heap) == n)
+                return; // already tight
+
+            pointer p = m_allocator.allocate(n + 1);
+            traits_type::copy(p, m_heap.data, n);
+            p[n] = value_type{};
+            m_allocator.deallocate(m_heap.data, Tag::get_heap_capacity(m_heap) + 1);
+            m_heap.data = p;
+            m_heap.size = n;
+            Tag::set_heap_capacity(m_heap, n);
+        }
+
+        constexpr void clear() noexcept {
+            if (_m_is_heap()) {
+                m_heap.size = 0;
+                m_heap.data[0] = value_type{};
+            } else {
+                Tag::set_stack_size(m_stack, 0);
+                m_stack.data[0] = value_type{};
+            }
+        }
+
+        constexpr basic_string& insert(
+            size_type index,
+            size_type count,
+            value_type chr
+        ) noexcept {
+            if (count == 0)
+                return *this;
+            pointer base = _m_make_gap(index, count);
+            traits_type::assign(base + index, count, chr);
+            return *this;
+        }
+
+        constexpr basic_string& insert(
+            size_type index,
+            const value_type* string
+        ) noexcept {
+            return insert(index, string, traits_type::length(string));
+        }
+
+        constexpr basic_string& insert(
+            size_type index,
+            const value_type* string,
+            size_type count
+        ) noexcept {
+            return _m_insert_impl(index, string, count);
+        }
+
+        constexpr basic_string& insert(
+            size_type index,
+            const basic_string& str
+        ) noexcept {
+            return insert(index, str.data(), str.size());
+        }
+
+        constexpr basic_string& insert(
+            size_type index,
+            const basic_string& string,
+            size_type stringIndex,
+            size_type count = npos
+        ) noexcept {
+            assert(stringIndex <= string.size() && "basic_string::insert: stringIndex out of range");
+            size_type n = std::min(count, string.size() - stringIndex);
+            return insert(index, string.data() + stringIndex, n);
+        }
+
+        constexpr iterator insert(
+            const_iterator pos,
+            value_type chr
+        ) noexcept {
+            size_type index = pos - cbegin();
+            pointer base = _m_make_gap(index, 1);
+            base[index] = chr;
+            return base + index;
+        }
+
+        constexpr iterator insert(
+            const_iterator pos,
+            size_type count,
+            value_type chr
+        ) noexcept {
+            size_type index = pos - cbegin();
+            if (count == 0)
+                return data() + index;
+            pointer base = _m_make_gap(index, count);
+            traits_type::assign(base + index, count, chr);
+            return base + index;
+        }
+
+        template <typename InputIt>
+        constexpr iterator insert(
+            const_iterator pos,
+            InputIt first,
+            InputIt last
+        ) noexcept {
+            size_type index = pos - cbegin();
+            return insert_range_at(
+                index,
+                first,
+                last,
+                typename std::iterator_traits<InputIt>::iterator_category{}
+            );
+        }
+
+        constexpr iterator insert(
+            const_iterator pos,
+            std::initializer_list<value_type> list
+        ) noexcept {
+            return insert(pos, list.begin(), list.end());
+        }
+
+        template <class StringViewLike>
+        requires (
+            std::is_convertible_v<
+                const StringViewLike&,
+                std::basic_string_view<value_type, traits_type>
+            > &&
+            !std::is_convertible_v<const StringViewLike&, const_pointer>
+        )
+        constexpr basic_string& insert(
+            size_type index,
+            const StringViewLike& string
+        ) noexcept {
+            std::basic_string_view<value_type, traits_type> view = string;
+            return insert_impl(index, view.data(), static_cast<size_type>(view.size()));
+        }
+
+        template <class StringViewLike>
+        requires (
+            std::is_convertible_v<
+                const StringViewLike&,
+                std::basic_string_view<value_type, traits_type>
+            > &&
+            !std::is_convertible_v<const StringViewLike&, const value_type*>
+        )
+        constexpr basic_string& insert(
+            size_type index,
+            const StringViewLike& string,
+            size_type t_index,
+            size_type count = npos
+        ) noexcept {
+            std::basic_string_view<value_type, traits_type> view = string;
+            assert(t_index <= view.size() && "basic_string::insert: t_index out of range");
+
+            size_type n = std::min(count, view.size() - t_index);
+            return insert_impl(index, view.data() + t_index, n);
+        }
+
+        template <detail::container_compatible_range<value_type> R>
+        constexpr basic_string& insert_range(const_iterator pos, R&& range) noexcept {
+            return insert(
+                pos - begin(),
+                basic_string(from_range, std::forward<R>(range), get_allocator())
+            );
+        }
+
+        constexpr basic_string& erase(
+            size_type index = 0,
+            size_type count = npos
+        ) noexcept {
+            assert(index <= size() && "basic_string::erase: index out of range");
+            size_type n = std::min(count, size() - index);
+            if (n == 0)
+                return *this;
+
+            size_type oldN = size();
+            size_type newN = oldN - n;
+
+            if (_m_is_heap()) {
+                traits_type::move(m_heap.data + index, m_heap.data + index + n, oldN - index - n);
+                m_heap.size = newN;
+                m_heap.data[newN] = value_type{};
+            } else {
+                traits_type::move(m_stack.data + index, m_stack.data + index + n, oldN - index - n);
+                Tag::set_stack_size(m_stack, newN);
+                m_stack.data[newN] = value_type{};
+            }
+            return *this;
+        }
+
+        constexpr iterator erase(const_iterator position) noexcept {
+            size_type index = position - cbegin();
+            erase(index, 1);
+            return data() + index;
+        }
+
+        constexpr iterator erase(const_iterator first, const_iterator last) noexcept {
+            size_type index = first - cbegin();
+            size_type count = last - first;
+            erase(index, count);
+            return data() + index;
+        }
+
+        constexpr void push_back(value_type chr) noexcept {
+            size_type n = size();
+            if (!_m_is_heap() && n < StackMeta::capacity) {
+                m_stack.data[n] = chr;
+                Tag::set_stack_size(m_stack, n + 1);
+                m_stack.data[n + 1] = value_type{};
+                return;
+            }
+            _m_grow_and_append(&chr, 1);
+        }
+
+        constexpr void pop_back() noexcept {
+            assert(!empty() && "basic_string::pop_back: string is empty");
+
+            if (_m_is_heap()) {
+                --m_heap.size;
+                m_heap.data[m_heap.size] = value_type{};
+            } else {
+                size_type n = Tag::get_stack_size(m_stack) - 1;
+                Tag::set_stack_size(m_stack, n);
+                m_stack.data[n] = value_type{};
+            }
+        }
+
+        constexpr basic_string& append(size_type count, value_type chr) noexcept {
+            if (count == 0)
+                return *this;
+
+            size_type oldN = size();
+            pointer base = _m_make_room_at_end(count);
+            traits_type::assign(base + oldN, count, chr);
+            return *this;
+        }
+
+        constexpr basic_string& append(const value_type* string, size_type count) noexcept {
+            return _m_append_impl(string, count);
+        }
+
+        constexpr basic_string& append(const value_type* string) noexcept {
+            return append(string, traits_type::length(string));
+        }
+
+        template <class StringView>
+        requires (
+            std::is_convertible_v<
+                const StringView&,
+                std::basic_string_view<value_type, traits_type>
+            > &&
+            !std::is_convertible_v<const StringView&, const_pointer>
+        )
+        constexpr basic_string& append(const StringView& string) noexcept {
+            std::basic_string_view<value_type, traits_type> view = string;
+            return append(view.data(), static_cast<size_type>(view.size()));
+        }
+
+        template <class StringView>
+        requires (
+            std::is_convertible_v<
+                const StringView&,
+                std::basic_string_view<value_type, traits_type>
+            > &&
+            !std::is_convertible_v<const StringView&, const_pointer>
+        )
+        constexpr basic_string& append(
+            const StringView& string,
+            size_type pos,
+            size_type count = npos
+        ) noexcept {
+            std::basic_string_view<value_type, traits_type> view = string;
+            assert(pos <= view.size() && "basic_string::append: pos out of range");
+            size_type n = std::min(count, view.size() - pos);
+            return append(view.data() + pos, n);
+        }
+
+        constexpr basic_string& append(const basic_string& string) noexcept {
+            return append(string.data(), string.size());
+        }
+
+        constexpr basic_string& append(
+            const basic_string& str,
+            size_type pos,
+            size_type count = npos
+        ) noexcept {
+            assert(pos <= str.size() && "basic_string::append: pos out of range");
+            size_type n = std::min(count, str.size() - pos);
+            return append(str.data() + pos, n);
+        }
+
+        template <typename InputIt>
+        constexpr basic_string& append(InputIt first, InputIt last) noexcept {
+            _m_append_range(
+                first,
+                last,
+                typename std::iterator_traits<InputIt>::iterator_category{}
+            );
+            return *this;
+        }
+
+        constexpr basic_string& append(std::initializer_list<value_type> list) noexcept {
+            return append(list.begin(), static_cast<size_type>(list.size()));
+        }
+
+        template <detail::container_compatible_range<value_type> R>
+        constexpr basic_string& append_range(R&& range) noexcept {
+            return append(basic_string(
+                from_range,
+                std::forward<R>(range),
+                get_allocator()
+            ));
+        }
+
+        constexpr basic_string& operator+=(const basic_string& string) noexcept {
+            return append(string);
+        }
+        constexpr basic_string& operator+=(value_type chr) noexcept {
+            push_back(chr);
+            return *this;
+        }
+        constexpr basic_string& operator+=(const_pointer string) noexcept {
+            return append(string);
+        }
+        constexpr basic_string& operator+=(std::initializer_list<value_type> list) noexcept {
+            return append(list);
+        }
+
+        template <class StringViewLike> requires (
+            std::is_convertible_v<
+                const StringViewLike&,
+                std::basic_string_view<value_type, traits_type>
+            > &&
+            !std::is_convertible_v<const StringViewLike&, const_pointer>
+        )
+        constexpr basic_string& operator+=(const StringViewLike& string) noexcept {
+            return append(string);
+        }
+
+        constexpr basic_string& replace(
+            size_type pos,
+            size_type count,
+            const basic_string& str
+        ) noexcept {
+            return _m_replace_impl(pos, count, str.data(), str.size());
+        }
+
+        constexpr basic_string& replace(
+            const_iterator first,
+            const_iterator last,
+            const basic_string& str
+        ) noexcept {
+            return _m_replace_impl(first - cbegin(), last - first, str.data(), str.size());
+        }
+
+        constexpr basic_string& replace(
+            size_type pos,
+            size_type count,
+            const basic_string& str,
+            size_type pos2,
+            size_type count2 = npos
+        ) noexcept {
+            assert(pos2 <= str.size() && "basic_string::replace: pos2 out of range");
+            size_type n = std::min(count2, str.size() - pos2);
+            return _m_replace_impl(pos, count, str.data() + pos2, n);
+        }
+
+        constexpr basic_string& replace(
+            size_type pos,
+            size_type count,
+            const value_type* cstr,
+            size_type count2
+        ) noexcept {
+            return _m_replace_impl(pos, count, cstr, count2);
+        }
+
+        constexpr basic_string& replace(
+            const_iterator first,
+            const_iterator last,
+            const value_type* cstr,
+            size_type count2
+        ) noexcept {
+            return _m_replace_impl(first - cbegin(), last - first, cstr, count2);
+        }
+
+        constexpr basic_string& replace(
+            size_type pos,
+            size_type count,
+            const value_type* cstr
+        ) noexcept {
+            return replace(pos, count, cstr, traits_type::length(cstr));
+        }
+
+        constexpr basic_string& replace(
+            const_iterator first,
+            const_iterator last,
+            const value_type* cstr
+        ) noexcept {
+            return replace(first, last, cstr, traits_type::length(cstr));
+        }
+
+        constexpr basic_string& replace(
+            size_type pos,
+            size_type count,
+            size_type count2,
+            value_type ch
+        ) noexcept {
+            return _m_replace_fill_impl(pos, count, count2, ch);
+        }
+
+        constexpr basic_string& replace(
+            const_iterator first,
+            const_iterator last,
+            size_type count2,
+            value_type ch
+        ) noexcept {
+            return _m_replace_fill_impl(first - cbegin(), last - first, count2, ch);
+        }
+
+        template <typename InputIt>
+        constexpr basic_string& replace(
+            const_iterator first,
+            const_iterator last,
+            InputIt first2,
+            InputIt last2
+        ) noexcept {
+            basic_string tmp(first2, last2, get_allocator());
+            return _m_replace_impl(first - cbegin(), last - first, tmp.data(), tmp.size());
+        }
+
+        constexpr basic_string& replace(
+            const_iterator first,
+            const_iterator last,
+            std::initializer_list<value_type> list
+        ) noexcept {
+            return _m_replace_impl(
+                first - cbegin(),
+                last - first,
+                list.begin(),
+                static_cast<size_type>(list.size())
+            );
+        }
+
+        template <class StringViewLike>
+        requires (
+            std::is_convertible_v<const StringViewLike&, std::basic_string_view<value_type, traits_type>> &&
+            !std::is_convertible_v<const StringViewLike&, const_pointer>
+        )
+        constexpr basic_string& replace(
+            size_type pos,
+            size_type count,
+            const StringViewLike& string
+        ) noexcept {
+            std::basic_string_view<value_type, traits_type> view = string;
+            return _m_replace_impl(
+                pos,
+                count,
+                view.data(),
+                static_cast<size_type>(view.size())
+            );
+        }
+
+        template <class StringViewLike>
+        requires (
+            std::is_convertible_v<
+                const StringViewLike&,
+                std::basic_string_view<value_type, traits_type>
+            > &&
+            !std::is_convertible_v<const StringViewLike&, const_pointer>
+        )
+        constexpr basic_string& replace(
+            const_iterator first,
+            const_iterator last,
+            const StringViewLike& string
+        ) noexcept {
+            std::basic_string_view<value_type, traits_type> view = string;
+            return _m_replace_impl(
+                first - cbegin(),
+                last - first,
+                view.data(),
+                static_cast<size_type>(view.size())
+            );
+        }
+
+        template <class StringViewLike>
+        requires (
+            std::is_convertible_v<
+                const StringViewLike&,
+                std::basic_string_view<value_type, traits_type>
+            > &&
+            !std::is_convertible_v<const StringViewLike&, const_pointer>
+        )
+        constexpr basic_string& replace(
+            size_type pos,
+            size_type count,
+            const StringViewLike& string,
+            size_type pos2,
+            size_type count2 = npos
+        ) noexcept {
+            std::basic_string_view<value_type, traits_type> view = string;
+            assert(pos2 <= view.size() && "basic_string::replace: pos2 out of range");
+            size_type n = std::min(count2, view.size() - pos2);
+            return _m_replace_impl(pos, count, view.data() + pos2, n);
+        }
+        
+        template <detail::container_compatible_range<value_type> R>
+        constexpr basic_string& replace_with_range(
+            const_iterator first,
+            const_iterator last,
+            R&& range
+        ) noexcept {
+            return replace(
+                first,
+                last,
+                basic_string(
+                    from_range,
+                    std::forward<R>(range),
+                    get_allocator()
+                )
+            );
+        }
+
+        constexpr size_type copy(
+            pointer dest,
+            size_type count,
+            size_type pos = 0
+        ) const noexcept {
+            assert(pos <= size() && "basic_string::copy: pos out of range");
+            size_type n = std::min(count, size() - pos);
+            traits_type::copy(dest, data() + pos, n);
+            return n;
+        }
+
+        constexpr void resize(size_type count) noexcept {
+            resize(count, value_type{});
+        }
+
+        constexpr void resize(size_type count, value_type chr) noexcept {
+            size_type n = size();
+            if (count <= n) {
+                // shrinking: no allocation, just truncate
+                erase(count, n - count);
+                return;
+            }
+            size_type addN = count - n;
+            // may relocate; returns fresh base
+            pointer base = _m_make_room_at_end(addN);
+            traits_type::assign(base + n, addN, chr);
+        }
+
+        template <class Operation>
+        constexpr void resize_and_overwrite(size_type count, Operation op) noexcept {
+            reserve(count);
+            pointer p = data();
+            size_type newN = static_cast<size_type>(op(p, count));
+            assert(
+                newN <= count &&
+                "basic_string::resize_and_overwrite: Operation returned size > count"
+            );
+
+            if (_m_is_heap()) {
+                m_heap.size = newN;
+            } else {
+                Tag::set_stack_size(m_stack, newN);
+            }
+            p[newN] = value_type{};
+        }
+
+        constexpr void swap(basic_string& other) noexcept {
+            // aliasing-safe: union bytes only
+            std::swap(m_heap, other.m_heap);
+            std::swap(m_allocator, other.m_allocator);
+        }
+
+        // ==================== find ====================
+        constexpr size_type find(
+            const basic_string& string,
+            size_type pos = 0
+        ) const noexcept {
+            return _m_search(data(), size(), string.data(), string.size(), pos);
+        }
+        constexpr size_type find(
+            const value_type* string,
+            size_type pos,
+            size_type count
+        ) const noexcept {
+            return _m_search(data(), size(), string, count, pos);
+        }
+        constexpr size_type find(
+            const value_type* string,
+            size_type pos = 0
+        ) const noexcept {
+            return find(string, pos, traits_type::length(string));
+        }
+        constexpr size_type find(
+            value_type ch,
+            size_type pos = 0
+        ) const noexcept {
+            return _m_search(data(), size(), &ch, 1, pos);
+        }
+        template <class StringViewLike>
+        requires (
+            std::is_convertible_v<
+                const StringViewLike&,
+                std::basic_string_view<value_type, traits_type>
+            > &&
+            !std::is_convertible_v<const StringViewLike&, const_pointer>
+        )
+        constexpr size_type find(
+            const StringViewLike& string,
+            size_type pos = 0
+        ) const noexcept {
+            std::basic_string_view<value_type, traits_type> view = string;
+            return _m_search(
+                data(),
+                size(),
+                view.data(),
+                static_cast<size_type>(view.size()),
+                pos
+            );
+        }
+
+        // ==================== rfind ====================
+        constexpr size_type rfind(
+            const basic_string& string,
+            size_type pos = npos
+        ) const noexcept {
+            return _m_rsearch(data(), size(), string.data(), string.size(), pos);
+        }
+        constexpr size_type rfind(
+            const value_type* string,
+            size_type pos,
+            size_type count
+        ) const noexcept {
+            return _m_rsearch(data(), size(), string, count, pos);
+        }
+        constexpr size_type rfind(
+            const value_type* string,
+            size_type pos = npos
+        ) const noexcept {
+            return rfind(string, pos, traits_type::length(string));
+        }
+        constexpr size_type rfind(value_type ch, size_type pos = npos) const noexcept {
+            return _m_rsearch(data(), size(), &ch, 1, pos);
+        }
+        template <class StringViewLike>
+        requires (
+            std::is_convertible_v<
+                const StringViewLike&,
+                std::basic_string_view<value_type, traits_type>
+                > &&
+            !std::is_convertible_v<const StringViewLike&, const_pointer>
+        )
+        constexpr size_type rfind(
+            const StringViewLike& string,
+            size_type pos = npos
+        ) const noexcept {
+            std::basic_string_view<value_type, traits_type> view = string;
+            return _m_rsearch(
+                data(),
+                size(),
+                view.data(),
+                static_cast<size_type>(view.size()),
+                pos
+            );
+        }
+
+        // ==================== find_first_of ====================
+        constexpr size_type find_first_of(
+            const basic_string& string,
+            size_type pos = 0
+        ) const noexcept {
+            return _m_find_first_of_impl(data(), size(), string.data(), string.size(), pos);
+        }
+        constexpr size_type find_first_of(
+            const value_type* string,
+            size_type pos,
+            size_type count
+        ) const noexcept {
+            return _m_find_first_of_impl(data(), size(), string, count, pos);
+        }
+        constexpr size_type find_first_of(
+            const value_type* string,
+            size_type pos = 0
+        ) const noexcept {
+            return find_first_of(string, pos, traits_type::length(string));
+        }
+        constexpr size_type find_first_of(
+            value_type ch,
+            size_type pos = 0
+        ) const noexcept {
+            return find(ch, pos);
+        }
+        template <class StringViewLike>
+        requires (
+            std::is_convertible_v<
+                const StringViewLike&,
+                std::basic_string_view<value_type, traits_type>
+                > &&
+            !std::is_convertible_v<const StringViewLike&, const_pointer>
+        )
+        constexpr size_type find_first_of(
+            const StringViewLike& string,
+            size_type pos = 0
+        ) const noexcept {
+            std::basic_string_view<value_type, traits_type> view = string;
+            return _m_find_first_of_impl(
+                data(),
+                size(),
+                view.data(),
+                static_cast<size_type>(view.size()),
+                pos
+            );
+        }
+
+        // ==================== find_first_not_of ====================
+        constexpr size_type find_first_not_of(
+            const basic_string& string,
+            size_type pos = 0
+        ) const noexcept {
+            return _m_find_first_not_of_impl(data(), size(), string.data(), string.size(), pos);
+        }
+        constexpr size_type find_first_not_of(
+            const value_type* string,
+            size_type pos,
+            size_type count
+        ) const noexcept {
+            return _m_find_first_not_of_impl(data(), size(), string, count, pos);
+        }
+        constexpr size_type find_first_not_of(
+            const value_type* string,
+            size_type pos = 0
+        ) const noexcept {
+            return find_first_not_of(string, pos, traits_type::length(string));
+        }
+        constexpr size_type find_first_not_of(
+            value_type ch,
+            size_type pos = 0
+        ) const noexcept {
+            return _m_find_first_not_of_impl(data(), size(), &ch, 1, pos);
+        }
+        template <class StringViewLike>
+        requires (
+            std::is_convertible_v<
+                const StringViewLike&,
+                std::basic_string_view<value_type, traits_type>
+                > &&
+            !std::is_convertible_v<const StringViewLike&, const_pointer>
+        )
+        constexpr size_type find_first_not_of(
+            const StringViewLike& string,
+            size_type pos = 0
+        ) const noexcept {
+            std::basic_string_view<value_type, traits_type> view = string;
+            return _m_find_first_not_of_impl(
+                data(),
+                size(),
+                view.data(),
+                static_cast<size_type>(view.size()),
+                pos
+            );
+        }
+
+        // ==================== find_last_of ====================
+        constexpr size_type find_last_of(
+            const basic_string& string,
+            size_type pos = npos
+        ) const noexcept {
+            return _m_find_last_of_impl(data(), size(), string.data(), string.size(), pos);
+        }
+        constexpr size_type find_last_of(
+            const value_type* string,
+            size_type pos,
+            size_type count
+        ) const noexcept {
+            return _m_find_last_of_impl(data(), size(), string, count, pos);
+        }
+        constexpr size_type find_last_of(
+            const value_type* string,
+            size_type pos = npos
+        ) const noexcept {
+            return find_last_of(string, pos, traits_type::length(string));
+        }
+        constexpr size_type find_last_of(
+            value_type ch,
+            size_type pos = npos
+        ) const noexcept {
+            return rfind(ch, pos);
+        }
+        template <class StringViewLike>
+        requires (
+            std::is_convertible_v<
+                const StringViewLike&,
+                std::basic_string_view<value_type, traits_type>
+                > &&
+            !std::is_convertible_v<const StringViewLike&, const_pointer>
+        )
+        constexpr size_type find_last_of(
+            const StringViewLike& string,
+            size_type pos = npos
+        ) const noexcept {
+            std::basic_string_view<value_type, traits_type> view = string;
+            return _m_find_last_of_impl(
+                data(),
+                size(),
+                view.data(),
+                static_cast<size_type>(view.size()),
+                pos
+            );
+        }
+
+        // ==================== find_last_not_of ====================
+        constexpr size_type find_last_not_of(
+            const basic_string& string,
+            size_type pos = npos
+        ) const noexcept {
+            return _m_find_last_not_of_impl(data(), size(), string.data(), string.size(), pos);
+        }
+        constexpr size_type find_last_not_of(
+            const value_type* string,
+            size_type pos,
+            size_type count
+        ) const noexcept {
+            return _m_find_last_not_of_impl(data(), size(), string, count, pos);
+        }
+        constexpr size_type find_last_not_of(
+            const value_type* string,
+            size_type pos = npos
+        ) const noexcept {
+            return find_last_not_of(string, pos, traits_type::length(string));
+        }
+        constexpr size_type find_last_not_of(
+            value_type ch,
+            size_type pos = npos
+        ) const noexcept {
+            return _m_find_last_not_of_impl(data(), size(), &ch, 1, pos);
+        }
+        template <class StringViewLike>
+        requires (
+            std::is_convertible_v<
+                const StringViewLike&,
+                std::basic_string_view<value_type, traits_type>
+                > &&
+            !std::is_convertible_v<const StringViewLike&, const_pointer>
+        )
+        constexpr size_type find_last_not_of(
+            const StringViewLike& string,
+            size_type pos = npos
+        ) const noexcept {
+            std::basic_string_view<value_type, traits_type> view = string;
+            return _m_find_last_not_of_impl(
+                data(),
+                size(),
+                view.data(),
+                static_cast<size_type>(view.size()),
+                pos
+            );
+        }
+
+        constexpr int compare(const basic_string& string) const noexcept {
+            return _m_compare_impl(data(), size(), string.data(), string.size());
+        }
+
+        constexpr int compare(
+            size_type pos1,
+            size_type count1,
+            const basic_string& string
+        ) const noexcept {
+            assert(pos1 <= size() && "basic_string::compare: pos1 out of range");
+            size_type n1 = std::min(count1, size() - pos1);
+            return _m_compare_impl(data() + pos1, n1, string.data(), string.size());
+        }
+
+        constexpr int compare(
+            size_type pos1,
+            size_type count1,
+            const basic_string& string,
+            size_type pos2,
+            size_type count2 = npos
+        ) const noexcept {
+            assert(pos1 <= size() && "basic_string::compare: pos1 out of range");
+            assert(pos2 <= string.size() && "basic_string::compare: pos2 out of range");
+            size_type n1 = std::min(count1, size() - pos1);
+            size_type n2 = std::min(count2, string.size() - pos2);
+            return _m_compare_impl(data() + pos1, n1, string.data() + pos2, n2);
+        }
+
+        constexpr int compare(const value_type* string) const noexcept {
+            return _m_compare_impl(data(), size(), string, traits_type::length(string));
+        }
+
+        constexpr int compare(
+            size_type pos1,
+            size_type count1,
+            const value_type* string
+        ) const noexcept {
+            assert(pos1 <= size() && "basic_string::compare: pos1 out of range");
+            size_type n1 = std::min(count1, size() - pos1);
+            return _m_compare_impl(data() + pos1, n1, string, traits_type::length(string));
+        }
+
+        constexpr int compare(
+            size_type pos1,
+            size_type count1,
+            const value_type* string,
+            size_type count2
+        ) const noexcept {
+            assert(pos1 <= size() && "basic_string::compare: pos1 out of range");
+            size_type n1 = std::min(count1, size() - pos1);
+            return _m_compare_impl(data() + pos1, n1, string, count2);
+        }
+
+        template <class StringViewLike>
+        requires (
+            std::is_convertible_v<
+                const StringViewLike&,
+                std::basic_string_view<value_type, traits_type>
+            > &&
+            !std::is_convertible_v<const StringViewLike&, const_pointer>
+        )
+        constexpr int compare(const StringViewLike& string) const
+            noexcept(std::is_nothrow_convertible_v<
+                const StringViewLike&,
+                std::basic_string_view<value_type, traits_type>
+            >)
+        {
+            std::basic_string_view<value_type, traits_type> view = string;
+            return _m_compare_impl(
+                data(),
+                size(),
+                view.data(),
+                static_cast<size_type>(view.size())
+            );
+        }
+
+        template <class StringViewLike>
+        requires (
+            std::is_convertible_v<
+                const StringViewLike&,
+                std::basic_string_view<value_type, traits_type>
+            > &&
+            !std::is_convertible_v<const StringViewLike&, const_pointer>
+        )
+        constexpr int compare(
+            size_type pos1,
+            size_type count1,
+            const StringViewLike& string
+        ) const noexcept {
+            assert(pos1 <= size() && "basic_string::compare: pos1 out of range");
+            size_type n1 = std::min(count1, size() - pos1);
+            std::basic_string_view<value_type, traits_type> view = string;
+            return _m_compare_impl(
+                data() + pos1,
+                n1,
+                view.data(),
+                static_cast<size_type>(view.size())
+            );
+        }
+
+        template <class StringViewLike>
+        requires (
+            std::is_convertible_v<
+                const StringViewLike&,
+                std::basic_string_view<value_type, traits_type>
+            > &&
+            !std::is_convertible_v<const StringViewLike&, const_pointer>
+        )
+        constexpr int compare(
+            size_type pos1,
+            size_type count1,
+            const StringViewLike& string,
+            size_type pos2,
+            size_type count2 = npos
+        ) const noexcept {
+            assert(pos1 <= size() && "basic_string::compare: pos1 out of range");
+            std::basic_string_view<value_type, traits_type> view = string;
+            assert(pos2 <= view.size() && "basic_string::compare: pos2 out of range");
+            size_type n1 = std::min(count1, size() - pos1);
+            size_type n2 = std::min(count2, view.size() - pos2);
+            return _m_compare_impl(data() + pos1, n1, view.data() + pos2, n2);
+        }
+
+        // ==================== starts_with ====================
+        constexpr bool starts_with(
+            std::basic_string_view<value_type, traits_type> view
+        ) const noexcept {
+            size_type n = view.size();
+            return size() >= n && traits_type::compare(data(), view.data(), n) == 0;
+        }
+        constexpr bool starts_with(value_type ch) const noexcept {
+            return !empty() && traits_type::eq(front(), ch);
+        }
+        constexpr bool starts_with(const value_type* string) const noexcept {
+            return starts_with(std::basic_string_view<value_type, traits_type>(string));
+        }
+
+        // ==================== ends_with ====================
+        constexpr bool ends_with(
+            std::basic_string_view<value_type, traits_type> view
+        ) const noexcept {
+            size_type n = static_cast<size_type>(view.size());
+            return
+            size() >= n &&
+                traits_type::compare(data() + size() - n, view.data(), n) == 0;
+        }
+        constexpr bool ends_with(value_type ch) const noexcept {
+            return !empty() && traits_type::eq(back(), ch);
+        }
+        constexpr bool ends_with(const value_type* string) const noexcept {
+            return ends_with(
+                std::basic_string_view<value_type, traits_type>(string)
+            );
+        }
+
+        // ==================== contains ====================
+        constexpr bool contains(
+            std::basic_string_view<value_type, traits_type> view
+        ) const noexcept {
+            return _m_search(
+                data(),
+                size(),
+                view.data(),
+                static_cast<size_type>(view.size()), 0
+            ) != npos;
+        }
+        constexpr bool contains(value_type ch) const noexcept {
+            return find(ch) != npos;
+        }
+        constexpr bool contains(const value_type* string) const noexcept {
+            return contains(std::basic_string_view<value_type, traits_type>(string));
+        }
+
+        constexpr basic_string substr(
+            size_type pos = 0,
+            size_type count = npos
+        ) const& noexcept {
+            return basic_string(*this, pos, count, get_allocator());
+        }
+
+        constexpr basic_string substr(
+            size_type pos = 0,
+            size_type count = npos
+        ) && noexcept {
+            return basic_string(std::move(*this), pos, count, get_allocator());
+        }
+        constexpr std::basic_string_view<value_type, traits_type> subview(
+            size_type pos = 0,
+            size_type count = npos
+        ) const noexcept {
+            assert(pos <= size() && "basic_string::subview: pos out of range");
+            return std::basic_string_view<value_type, traits_type>(
+                data() + pos,
+                std::min(count, size() - pos)
+            );
+        }
+#pragma endregion Public functions
+    private:
+#pragma region Internal functions
+        static constexpr pointer _m_allocate(allocator_type& alloc, size_type count) {
+            pointer p = allocator_traits<allocator_type>::allocate(alloc, count);
+            if constexpr (!std::is_same_v<traits_type, char_traits<value_type>>) {
+                if (std::is_constant_evaluated()) {
+                    for (size_type i = 0; i < count; ++i) {
+                        std::construct_at(std::addressof(p[i]));
+                    }
+                }
+            }
+            return p;
+        }
+
+        constexpr void _m_release() noexcept {
+            if (_m_is_heap()) {
+                m_allocator.deallocate(m_heap.data, Tag::get_heap_capacity(m_heap) + 1);
+            }
+        }
+
+        constexpr void _m_assign_from(const value_type* string, size_type count) {
+            if (count <= StackMeta::capacity) {
+                traits_type::copy(m_stack.data, string, count);
+                Tag::set_stack_size(m_stack, count);
+                m_stack.data[count] = value_type{};
+            } else {
+                pointer p = m_allocator.allocate(count + 1);
+                traits_type::copy(p, string, count);
+                p[count] = value_type{};
+                m_heap.data = p;
+                m_heap.size = count;
+                Tag::set_heap_capacity(m_heap, count);
+            }
+        }
+
+        template <typename ForwardIt>
+        constexpr void _m_assign_range(
+            ForwardIt first,
+            ForwardIt last,
+            std::forward_iterator_tag
+        ) noexcept {
+            size_type count = std::distance(first, last);
+            if (count <= StackMeta::capacity) {
+                size_type i = 0;
+                for (; first != last; ++first, ++i)
+                    m_stack.data[i] = *first;
+                Tag::set_stack_size(m_stack, count);
+                m_stack.data[count] = value_type{};
+            } else {
+                pointer p = m_allocator.allocate(count + 1);
+                size_type i = 0;
+                for (; first != last; ++first, ++i)
+                    p[i] = *first;
+                p[count] = value_type{};
+                m_heap.data = p;
+                m_heap.size = count;
+                Tag::set_heap_capacity(m_heap, count);
+            }
+        }
+
+        template <typename InputIt>
+        constexpr void _m_assign_range(
+            InputIt first,
+            InputIt last,
+            std::input_iterator_tag
+        ) noexcept {
+            Tag::set_stack_size(m_stack, 0);
+            m_stack.data[0] = value_type{};
+            for (; first != last; ++first)
+                push_back(*first);
+        }
+
+        template <typename ForwardIt>
+        constexpr void _m_append_range(
+            ForwardIt first,
+            ForwardIt last,
+            std::forward_iterator_tag
+        ) noexcept {
+            size_type addN = std::distance(first, last);
+            if (addN == 0)
+                return;
+
+            // Materialize into a scratch buffer only when growth is required;
+            // otherwise write straight into the tail of the current buffer.
+            size_type oldN = size();
+            if (!_m_is_heap() && oldN + addN <= HeapMeta::capacity) {
+                size_type i = oldN;
+                for (; first != last; ++first, ++i)
+                    m_stack.data[i] = *first;
+                Tag::set_stack_size(m_stack, oldN + addN);
+                m_stack.data[oldN + addN] = value_type{};
+                return;
+            }
+
+            size_type newN = oldN + addN;
+            size_type newCap = _m_is_heap()
+                ? std::max(Tag::get_heap_capacity(m_heap) * 2, newN)
+                : newN;
+            pointer p = m_allocator.allocate(newCap + 1);
+            traits_type::copy(p, data(), oldN);
+            size_type i = oldN;
+            for (; first != last; ++first, ++i)
+                p[i] = *first;
+            p[newN] = value_type{};
+
+            _m_release();
+            m_heap.data = p;
+            m_heap.size = newN;
+            Tag::set_heap_capacity(m_heap, newCap);
+        }
+
+        template <typename InputIt>
+        constexpr void _m_append_range(
+            InputIt first,
+            InputIt last,
+            std::input_iterator_tag
+        ) noexcept {
+            for (; first != last; ++first)
+                push_back(*first);
+        }
+
+        static constexpr size_type _m_get_grow_size(size_type requested) noexcept {
+            return requested < 8 ? 8 : requested + requested / 2;
+        }
+
+        constexpr void _m_grow_and_append(const value_type* string, size_type addN) noexcept {
+            size_type oldN = size();
+            size_type newN = oldN + addN;
+            size_type newCap = _m_get_grow_size(newN);
+
+            pointer p = m_allocator.allocate(newCap + 1);
+            traits_type::copy(p, data(), oldN);   // must read old buffer before _m_release()
+            traits_type::copy(p + oldN, string, addN);
+            p[newN] = value_type{};
+
+            _m_release();
+            m_heap.data = p;
+            m_heap.size = newN;
+            Tag::set_heap_capacity(m_heap, newCap);
+        }
+
+        constexpr pointer _m_make_gap(size_type index, size_type count) noexcept {
+            assert(index <= size() && "basic_string: insert index out of range");
+            if (count == 0)
+                return data();
+
+            size_type oldN = size();
+            size_type newN = oldN + count;
+
+            if (!_m_is_heap() && newN <= StackMeta::capacity) {
+                traits_type::move(
+                    m_stack.data + index + count,
+                    m_stack.data + index,
+                    oldN - index
+                );
+                Tag::set_stack_size(m_stack, newN);
+                m_stack.data[newN] = value_type{};
+                return m_stack.data;
+            }
+
+            if (_m_is_heap() && newN <= Tag::get_heap_capacity(m_heap)) {
+                traits_type::move(
+                    m_heap.data + index + count,
+                    m_heap.data + index,
+                    oldN - index
+                );
+                m_heap.size = newN;
+                m_heap.data[newN] = value_type{};
+                return m_heap.data;
+            }
+
+            size_type newCap = std::max<size_type>(
+                _m_is_heap() ? Tag::get_heap_capacity(m_heap) * 2 : StackMeta::capacity * 2,
+                newN
+            );
+            pointer p = m_allocator.allocate(newCap + 1);
+            const_pointer old = data();
+            traits_type::copy(p, old, index);
+            traits_type::copy(p + index + count, old + index, oldN - index);
+            p[newN] = value_type{};
+
+            _m_release(); // old fully consumed above; safe to free now
+            m_heap.data = p;
+            m_heap.size = newN;
+            Tag::set_heap_capacity(m_heap, newCap);
+            return p;
+        }
+
+        constexpr bool _m_aliases(const_pointer string) const noexcept {
+            const_pointer b = data();
+            const_pointer e = b + capacity() + 1; // +1: include the terminator slot
+            return string >= b && string < e;
+        }
+
+        constexpr basic_string& _m_insert_impl(
+            size_type index,
+            const value_type* string,
+            size_type count
+        ) noexcept {
+            if (count == 0)
+                return *this;
+
+            if (_m_aliases(string)) {
+                pointer scratch = m_allocator.allocate(count);
+                traits_type::copy(scratch, string, count);
+                pointer base = _m_make_gap(index, count);
+                traits_type::copy(base + index, scratch, count);
+                m_allocator.deallocate(scratch, count);
+            } else {
+                pointer base = _m_make_gap(index, count);
+                traits_type::copy(base + index, string, count);
+            }
+            return *this;
+        }
+
+        template <typename ForwardIt>
+        constexpr iterator _m_insert_range_at(
+            size_type index,
+            ForwardIt first,
+            ForwardIt last,
+            std::forward_iterator_tag
+        ) noexcept {
+            size_type n = std::distance(first, last);
+            if (n == 0)
+                return data() + index;
+            pointer base = _m_make_gap(index, n);
+            size_type i = index;
+            for (; first != last; ++first, ++i)
+                base[i] = *first;
+            return base + index;
+        }
+
+        template <typename InputIt>
+        constexpr iterator _m_insert_range_at(
+            size_type index,
+            InputIt first,
+            InputIt last,
+            std::input_iterator_tag
+        ) noexcept {
+            size_type i = index;
+            for (; first != last; ++first, ++i) {
+                pointer base = _m_make_gap(i, 1);
+                base[i] = *first;
+            }
+            return data() + index;
+        }
+
+        constexpr pointer _m_make_room_at_end(size_type count) noexcept {
+            if (count == 0)
+                return data();
+
+            size_type oldN = size();
+            size_type newN = oldN + count;
+
+            if (!_m_is_heap() && newN <= StackMeta::capacity) {
+                Tag::set_stack_size(m_stack, newN);
+                m_stack.data[newN] = value_type{};
+                return m_stack.data;
+            }
+
+            if (_m_is_heap() && newN <= Tag::get_heap_capacity(m_heap)) {
+                m_heap.size = newN;
+                m_heap.data[newN] = value_type{};
+                return m_heap.data;
+            }
+
+            size_type newCap = _m_get_grow_size(newN);
+            pointer p = m_allocator.allocate(newCap + 1);
+            traits_type::copy(p, data(), oldN); // must read old buffer before _m_release()
+            p[newN] = value_type{};
+
+            _m_release();
+            m_heap.data = p;
+            m_heap.size = newN;
+            Tag::set_heap_capacity(m_heap, newCap);
+            return p;
+        }
+
+        constexpr basic_string& _m_append_impl(
+            const value_type* string,
+            size_type count
+        ) noexcept {
+            if (count == 0)
+                return *this;
+
+            if (_m_aliases(string)) {
+                pointer scratch = m_allocator.allocate(count);
+                traits_type::copy(scratch, string, count);
+                size_type oldN = size();
+                pointer base = _m_make_room_at_end(count);
+                traits_type::copy(base + oldN, scratch, count);
+                m_allocator.deallocate(scratch, count);
+            } else {
+                size_type oldN = size();
+                pointer base = _m_make_room_at_end(count);
+                traits_type::copy(base + oldN, string, count);
+            }
+            return *this;
+        }
+
+        constexpr void _m_replace_write(
+            size_type pos,
+            size_type count,
+            const value_type* source,
+            size_type srcCount,
+            size_type tailLen,
+            size_type newN
+        ) noexcept {
+            if (!_m_is_heap() && newN <= StackMeta::capacity) {
+                traits_type::move(m_stack.data + pos + srcCount, m_stack.data + pos + count, tailLen);
+                traits_type::copy(m_stack.data + pos, source, srcCount);
+                Tag::set_stack_size(m_stack, newN);
+                m_stack.data[newN] = value_type{};
+                return;
+            }
+
+            if (_m_is_heap() && newN <= Tag::get_heap_capacity(m_heap)) {
+                traits_type::move(m_heap.data + pos + srcCount, m_heap.data + pos + count, tailLen);
+                traits_type::copy(m_heap.data + pos, source, srcCount);
+                m_heap.size = newN;
+                m_heap.data[newN] = value_type{};
+                return;
+            }
+
+            size_type newCap = _m_get_grow_size(newN);
+            pointer p = m_allocator.allocate(newCap + 1);
+            const_pointer old = data();
+            traits_type::copy(p, old, pos);
+            traits_type::copy(p + pos, source, srcCount);
+            traits_type::copy(p + pos + srcCount, old + pos + count, tailLen);
+            p[newN] = value_type{};
+
+            _m_release(); // old fully consumed above; safe to free now
+            m_heap.data = p;
+            m_heap.size = newN;
+            Tag::set_heap_capacity(m_heap, newCap);
+        }
+
+        constexpr basic_string& _m_replace_impl(
+            size_type pos,
+            size_type count,
+            const value_type* source,
+            size_type srcCount
+        ) noexcept {
+            size_type oldN = size();
+            count = std::min(count, oldN - pos);
+
+            if (srcCount == 0)
+                return erase(pos, count); // pure deletion, nothing to stage/write
+
+            size_type tailLen = oldN - pos - count;
+            size_type newN = oldN - count + srcCount;
+
+            // Self-replace guard: str.replace(pos, count, str) or a slice of
+            // it. _m_replace_write may shift/reallocate mid-operation, which
+            // would invalidate `source` if it points into *this*.
+            if (_m_aliases(source)) {
+                pointer scratch = m_allocator.allocate(srcCount);
+                traits_type::copy(scratch, source, srcCount);
+                _m_replace_write(pos, count, scratch, srcCount, tailLen, newN);
+                m_allocator.deallocate(scratch, srcCount);
+            } else {
+                _m_replace_write(pos, count, source, srcCount, tailLen, newN);
+            }
+            return *this;
+        }
+
+        // ch is by-value, never aliases the buffer — no staging needed.
+        constexpr basic_string& _m_replace_fill_impl(
+            size_type pos,
+            size_type count,
+            size_type count2,
+            value_type ch
+        ) noexcept {
+            size_type oldN = size();
+            count = std::min(count, oldN - pos);
+
+            if (count2 == 0)
+                return erase(pos, count);
+
+            size_type tailLen = oldN - pos - count;
+            size_type newN = oldN - count + count2;
+
+            if (!_m_is_heap() && newN <= StackMeta::capacity) {
+                traits_type::move(m_stack.data + pos + count2, m_stack.data + pos + count, tailLen);
+                traits_type::assign(m_stack.data + pos, count2, ch);
+                Tag::set_stack_size(m_stack, newN);
+                m_stack.data[newN] = value_type{};
+                return *this;
+            }
+            if (_m_is_heap() && newN <= Tag::get_heap_capacity(m_heap)) {
+                traits_type::move(m_heap.data + pos + count2, m_heap.data + pos + count, tailLen);
+                traits_type::assign(m_heap.data + pos, count2, ch);
+                m_heap.size = newN;
+                m_heap.data[newN] = value_type{};
+                return *this;
+            }
+
+            size_type newCap = _m_get_grow_size(newN);
+            pointer p = m_allocator.allocate(newCap + 1);
+            const_pointer old = data();
+            traits_type::copy(p, old, pos);
+            traits_type::assign(p + pos, count2, ch);
+            traits_type::copy(p + pos + count2, old + pos + count, tailLen);
+            p[newN] = value_type{};
+
+            _m_release();
+            m_heap.data = p;
+            m_heap.size = newN;
+            Tag::set_heap_capacity(m_heap, newCap);
+            return *this;
+        }
+
+        static constexpr size_type _m_search(
+            const value_type* haystack,
+            size_type hLen,
+            const value_type* needle,
+            size_type nLen,
+            size_type pos
+        ) noexcept {
+            if (nLen == 0)
+                return pos <= hLen ? pos : npos;
+            if (pos > hLen || nLen > hLen - pos)
+                return npos;
+
+            size_type last = hLen - nLen;
+            for (size_type i = pos; i <= last; ++i) {
+                size_type j = 0;
+                for (; j < nLen; ++j)
+                    if (!traits_type::eq(haystack[i + j], needle[j]))
+                        break;
+                if (j == nLen)
+                    return i;
+            }
+            return npos;
+        }
+
+        static constexpr size_type _m_rsearch(
+            const value_type* haystack,
+            size_type hLen,
+            const value_type* needle,
+            size_type nLen,
+            size_type pos
+        ) noexcept {
+            if (nLen == 0)
+                return std::min(pos, hLen);
+            if (nLen > hLen)
+                return npos;
+
+            size_type last = std::min(pos, hLen - nLen);
+            for (size_type i = last + 1; i-- > 0; ) {
+                size_type j = 0;
+                for (; j < nLen; ++j)
+                    if (!traits_type::eq(haystack[i + j], needle[j]))
+                        break;
+                if (j == nLen)
+                    return i;
+            }
+            return npos;
+        }
+
+        static constexpr bool _m_in_set(
+            const_pointer set,
+            size_type setLen,
+            value_type ch
+        ) noexcept {
+            for (size_type i = 0; i < setLen; ++i)
+                if (traits_type::eq(set[i], ch))
+                    return true;
+            return false;
+        }
+
+        static constexpr size_type _m_find_first_of_impl(
+            const_pointer haystack,
+            size_type hLen,
+            const_pointer set,
+            size_type setLen,
+            size_type pos
+        ) noexcept {
+            for (size_type i = pos; i < hLen; ++i)
+                if (_m_in_set(set, setLen, haystack[i]))
+                    return i;
+            return npos;
+        }
+
+        static constexpr size_type _m_find_first_not_of_impl(
+            const_pointer haystack,
+            size_type hLen,
+            const_pointer set,
+            size_type setLen,
+            size_type pos
+        ) noexcept {
+            for (size_type i = pos; i < hLen; ++i)
+                if (!_m_in_set(set, setLen, haystack[i]))
+                    return i;
+            return npos;
+        }
+
+        static constexpr size_type _m_find_last_of_impl(
+            const_pointer haystack,
+            size_type hLen,
+            const_pointer set,
+            size_type setLen,
+            size_type pos
+        ) noexcept {
+            if (hLen == 0)
+                return npos;
+            size_type last = std::min(pos, hLen - 1);
+            for (size_type i = last + 1; i-- > 0; )
+                if (_m_in_set(set, setLen, haystack[i]))
+                    return i;
+            return npos;
+        }
+
+        static constexpr size_type _m_find_last_not_of_impl(
+            const value_type* haystack,
+            size_type hLen,
+            const value_type* set,
+            size_type setLen,
+            size_type pos
+        ) noexcept {
+            if (hLen == 0)
+                return npos;
+            size_type last = std::min(pos, hLen - 1);
+            for (size_type i = last + 1; i-- > 0; )
+                if (!_m_in_set(set, setLen, haystack[i]))
+                    return i;
+            return npos;
+        }
+
+        static constexpr std::strong_ordering _m_compare_impl(
+            const value_type* lhs,
+            size_type lhsLen,
+            const value_type* rhs,
+            size_type rhsLen
+        ) noexcept {
+            size_type rlen = std::min(lhsLen, rhsLen);
+            
+            int r = traits_type::compare(lhs, rhs, rlen);
+            if (r < 0)
+                return std::strong_ordering::less;
+            if (r > 0)
+                return std::strong_ordering::greater;
+
+            if (lhsLen < rhsLen)
+                return std::strong_ordering::less;
+            if (lhsLen > rhsLen)
+                return std::strong_ordering::greater;
+
+            return std::strong_ordering::equal;
+        }
+
+#pragma endregion Internal functions
+    private:
+#pragma region Internal data structures
+        struct HeapMeta {
+            pointer data;
+            size_type size;
+            size_type capacity;
+        };
+
+        struct StackMeta {
+            static constexpr size_type capacity = sizeof(HeapMeta) / sizeof(value_type);
+            value_type data[capacity];
+        };
+
+        struct Tag {
+            static constexpr size_type longFlag  = 1 << 7;
+            static constexpr size_type shortFlag = (1 << 7) - 1;
+            static constexpr size_type capacityMask = longFlag << ((sizeof(size_type) - 1) * 8);
+
+            static constexpr auto& byte_of(StackMeta& data) noexcept {
+                return reinterpret_cast<std::uint8_t*>(data.data)[data.capacity - 1];
+            }
+            static constexpr auto byte_of(const StackMeta& data) noexcept {
+                return reinterpret_cast<const std::uint8_t*>(data.data)[data.capacity - 1];
+            }
+            static constexpr bool _m_is_heap(const StackMeta& data) noexcept {
+                return NOS::Utils::Bits::is_set(byte_of(data), longFlag);
+            }
+            static constexpr bool is_stack(const StackMeta& data) noexcept {
+                return !_m_is_heap(data);
+            }
+            static constexpr void set_stack_size(StackMeta& data, size_type size) noexcept {
+                byte_of(data) = static_cast<std::uint8_t>(data.capacity - size);
+            }
+            static constexpr void set_heap_capacity(HeapMeta& data, size_type capacity) noexcept {
+                data.capacity = capacity | capacityMask;
+            }            
+            static constexpr auto get_stack_size(const StackMeta& data) noexcept {
+                return data.capacity - (byte_of(data) & shortFlag);
+            }
+            static constexpr auto get_heap_capacity(const HeapMeta& data) noexcept {
+                return data.capacity & ~capacityMask;
+            }
+        };
+        constexpr bool _m_is_heap() const noexcept { return Tag::_m_is_heap(m_stack); }
+
+        union {
+            HeapMeta m_heap;
+            StackMeta m_stack;
+        };
+        [[no_unique_address]] allocator_type m_allocator;
+#pragma endregion Internal data structures
+        
+        static_assert(
+            std::is_trivially_copyable_v<value_type> &&
+            std::is_trivially_default_constructible_v<value_type> &&
+            std::is_standard_layout_v<value_type>
+        );
+        
+        static_assert(std::is_same_v<value_type, typename traits_type::char_type>);
+        static_assert(std::is_same_v<value_type, typename allocator_type::value_type>);
+        static_assert(std::is_standard_layout_v<HeapMeta>);
+        static_assert(sizeof(HeapMeta) == sizeof(StackMeta));
     };
+
+    namespace detail {        
+        template <class CharT, class Traits, class Alloc>
+        constexpr basic_string<CharT, Traits, Alloc> concat(
+            const CharT* a,
+            typename basic_string<CharT, Traits, Alloc>::size_type aLen,
+            const CharT* b,
+            typename basic_string<CharT, Traits, Alloc>::size_type bLen,
+            const Alloc& alloc
+        ) noexcept {
+            basic_string<CharT, Traits, Alloc> result(alloc);
+            result.reserve(aLen + bLen);
+            result.append(a, aLen);
+            result.append(b, bLen);
+            return result;
+        }
+    }
+
+    template <class CharT, class Traits, class Alloc>
+    constexpr basic_string<CharT, Traits, Alloc> operator+(
+        const basic_string<CharT, Traits, Alloc>& lhs,
+        const basic_string<CharT, Traits, Alloc>& rhs
+    ) noexcept {
+        return detail::concat<CharT, Traits, Alloc>(
+            lhs.data(),
+            lhs.size(),
+            rhs.data(),
+            rhs.size(),
+            lhs.get_allocator()
+        );
+    }
+
+    template <class CharT, class Traits, class Alloc>
+    constexpr basic_string<CharT, Traits, Alloc> operator+(
+        const basic_string<CharT, Traits, Alloc>& lhs,
+        const CharT* rhs
+    ) noexcept {
+        return detail::concat<CharT, Traits, Alloc>(
+            lhs.data(),
+            lhs.size(),
+            rhs,
+            Traits::length(rhs),
+            lhs.get_allocator()
+        );
+    }
+
+    template <class CharT, class Traits, class Alloc>
+    constexpr basic_string<CharT, Traits, Alloc> operator+(
+        const basic_string<CharT, Traits, Alloc>& lhs,
+        CharT rhs
+    ) noexcept {
+        return detail::concat<CharT, Traits, Alloc>(
+            lhs.data(),
+            lhs.size(),
+            &rhs,
+            1,
+            lhs.get_allocator()
+        );
+    }
+
+    template <class CharT, class Traits, class Alloc>
+    constexpr basic_string<CharT, Traits, Alloc> operator+(
+        const basic_string<CharT, Traits, Alloc>& lhs,
+        std::type_identity_t<std::basic_string_view<CharT, Traits>> rhs
+    ) noexcept {
+        return detail::concat<CharT, Traits, Alloc>(
+            lhs.data(),
+            lhs.size(),
+            rhs.data(),
+            static_cast<typename basic_string<CharT,Traits,Alloc>::size_type>(rhs.size()),
+            lhs.get_allocator()
+        );
+    }
+
+    template <class CharT, class Traits, class Alloc>
+    constexpr basic_string<CharT, Traits, Alloc> operator+(
+        const CharT* lhs,
+        const basic_string<CharT, Traits, Alloc>& rhs
+    ) noexcept {
+        return detail::concat<CharT, Traits, Alloc>(
+            lhs,
+            Traits::length(lhs),
+            rhs.data(),
+            rhs.size(),
+            rhs.get_allocator()
+        );
+    }
+
+    template <class CharT, class Traits, class Alloc>
+    constexpr basic_string<CharT, Traits, Alloc> operator+(
+        CharT lhs,
+        const basic_string<CharT, Traits, Alloc>& rhs
+    ) noexcept {
+        return detail::concat<CharT, Traits, Alloc>(
+            &lhs,
+            1,
+            rhs.data(),
+            rhs.size(),
+            rhs.get_allocator()
+        );
+    }
+
+    template <class CharT, class Traits, class Alloc>
+    constexpr basic_string<CharT, Traits, Alloc> operator+(
+        std::type_identity_t<std::basic_string_view<CharT, Traits>> lhs,
+        const basic_string<CharT, Traits, Alloc>& rhs
+    ) noexcept {
+        return detail::concat<CharT, Traits, Alloc>(
+            lhs.data(),
+            static_cast<typename basic_string<CharT,Traits,Alloc>::size_type>(lhs.size()),
+            rhs.data(),
+            rhs.size(),
+            rhs.get_allocator()
+        );
+    }
+
+    // ==================== rvalue lhs: steal lhs's buffer, append rhs ====================
+
+    template <class CharT, class Traits, class Alloc>
+    constexpr basic_string<CharT, Traits, Alloc> operator+(
+        basic_string<CharT, Traits, Alloc>&& lhs,
+        basic_string<CharT, Traits, Alloc>&& rhs
+    ) noexcept {
+        basic_string<CharT, Traits, Alloc> result(std::move(lhs));
+        result.reserve(result.size() + rhs.size());
+        result.append(rhs.data(), rhs.size());
+        return result;
+    }
+
+    template <class CharT, class Traits, class Alloc>
+    constexpr basic_string<CharT, Traits, Alloc> operator+(
+        basic_string<CharT, Traits, Alloc>&& lhs,
+        const basic_string<CharT, Traits, Alloc>& rhs
+    ) noexcept {
+        basic_string<CharT, Traits, Alloc> result(std::move(lhs));
+        result.reserve(result.size() + rhs.size());
+        result.append(rhs.data(), rhs.size());
+        return result;
+    }
+
+    template <class CharT, class Traits, class Alloc>
+    constexpr basic_string<CharT, Traits, Alloc> operator+(
+        basic_string<CharT, Traits, Alloc>&& lhs,
+        const CharT* rhs
+    ) noexcept {
+        basic_string<CharT, Traits, Alloc> result(std::move(lhs));
+        typename basic_string<CharT, Traits, Alloc>::size_type n = Traits::length(rhs);
+        result.reserve(result.size() + n);
+        result.append(rhs, n);
+        return result;
+    }
+
+    template <class CharT, class Traits, class Alloc>
+    constexpr basic_string<CharT, Traits, Alloc> operator+(
+        basic_string<CharT, Traits, Alloc>&& lhs,
+        CharT rhs
+    ) noexcept {
+        basic_string<CharT, Traits, Alloc> result(std::move(lhs));
+        result.push_back(rhs);
+        return result;
+    }
+
+    template <class CharT, class Traits, class Alloc>
+    constexpr basic_string<CharT, Traits, Alloc> operator+(
+        basic_string<CharT, Traits, Alloc>&& lhs,
+        std::type_identity_t<std::basic_string_view<CharT, Traits>> rhs
+    ) noexcept {
+        basic_string<CharT, Traits, Alloc> result(std::move(lhs));
+        auto n = static_cast<typename basic_string<CharT, Traits, Alloc>::size_type>(rhs.size());
+        result.reserve(result.size() + n);
+        result.append(rhs.data(), n);
+        return result;
+    }
+
+    // ==================== rvalue rhs: steal rhs's buffer, prepend lhs ====================
+    template <class CharT, class Traits, class Alloc>
+    constexpr basic_string<CharT, Traits, Alloc> operator+(
+        const basic_string<CharT, Traits, Alloc>& lhs,
+        basic_string<CharT, Traits, Alloc>&& rhs
+    ) noexcept {
+        basic_string<CharT, Traits, Alloc> result(std::move(rhs));
+        result.reserve(lhs.size() + result.size());
+        result.insert(0, lhs.data(), lhs.size());
+        return result;
+    }
+
+    template <class CharT, class Traits, class Alloc>
+    constexpr basic_string<CharT, Traits, Alloc> operator+(
+        const CharT* lhs,
+        basic_string<CharT, Traits, Alloc>&& rhs
+    ) noexcept {
+        basic_string<CharT, Traits, Alloc> result(std::move(rhs));
+        typename basic_string<CharT, Traits, Alloc>::size_type n = Traits::length(lhs);
+        result.reserve(n + result.size());
+        result.insert(0, lhs, n);
+        return result;
+    }
+
+    template <class CharT, class Traits, class Alloc>
+    constexpr basic_string<CharT, Traits, Alloc> operator+(
+        CharT lhs,
+        basic_string<CharT, Traits, Alloc>&& rhs
+    ) noexcept {
+        basic_string<CharT, Traits, Alloc> result(std::move(rhs));
+        result.insert(0, 1, lhs); // single char prepend: insert(index, count, ch)
+        return result;
+    }
+
+    template <class CharT, class Traits, class Alloc>
+    constexpr basic_string<CharT, Traits, Alloc> operator+(
+        std::type_identity_t<std::basic_string_view<CharT, Traits>> lhs,
+        basic_string<CharT, Traits, Alloc>&& rhs
+    ) noexcept {
+        basic_string<CharT, Traits, Alloc> result(std::move(rhs));
+        auto n = static_cast<typename basic_string<CharT, Traits, Alloc>::size_type>(lhs.size());
+        result.reserve(n + result.size());
+        result.insert(0, lhs.data(), n);
+        return result;
+    }
+
+    template <class CharT, class Traits, class Alloc>
+    constexpr bool operator==(
+        const basic_string<CharT, Traits, Alloc>& lhs,
+        const basic_string<CharT, Traits, Alloc>& rhs
+    ) noexcept {
+        return
+            lhs.size() == rhs.size() &&
+            Traits::compare(lhs.data(), rhs.data(), lhs.size()) == 0;
+    }
+
+    template <class CharT, class Traits, class Alloc>
+    constexpr bool operator==(
+        const basic_string<CharT, Traits, Alloc>& lhs,
+        const CharT* rhs
+    ) noexcept {
+        return lhs.compare(rhs) == 0;
+    }
+
+    // ==================== operator<=> ====================
+    template <class CharT, class Traits, class Alloc>
+    constexpr detail::comparison_category_t<Traits> operator<=>(
+        const basic_string<CharT, Traits, Alloc>& lhs,
+        const basic_string<CharT, Traits, Alloc>& rhs
+    ) noexcept {
+        return static_cast<detail::comparison_category_t<Traits>>(lhs.compare(rhs) <=> 0);
+    }
+
+    template <class CharT, class Traits, class Alloc>
+    constexpr detail::comparison_category_t<Traits> operator<=>(
+        const basic_string<CharT, Traits, Alloc>& lhs,
+        const CharT* rhs
+    ) noexcept {
+        return static_cast<detail::comparison_category_t<Traits>>(lhs.compare(rhs) <=> 0);
+    }
+
+    template <class CharT, class Traits, class Alloc>
+    constexpr void swap(
+        basic_string<CharT, Traits, Alloc>& lhs,
+        basic_string<CharT, Traits, Alloc>& rhs
+    ) noexcept(noexcept(lhs.swap(rhs))) {
+        return lhs.swap(rhs);
+    }
+
+    template <class CharT, class Traits, class Alloc, class U = CharT>
+    constexpr basic_string<CharT, Traits, Alloc>::size_type erase(
+        basic_string<CharT, Traits, Alloc>& string,
+        const U& value
+    ) noexcept {
+        auto it = std::remove(string.begin(), string.end(), value);
+        auto r = string.end() - it;
+        string.erase(it, string.end());
+        return r;
+    }
+
+    template <class CharT, class Traits, class Alloc, class Pred>
+    constexpr basic_string<CharT, Traits, Alloc>::size_type erase_if(
+        basic_string<CharT, Traits, Alloc>& string,
+        Pred pred
+    ) noexcept {
+        auto it = std::remove_if(string.begin(), string.end(), pred);
+        auto r = string.end() - it;
+        string.erase(it, string.end());
+        return r;
+    }
+
+    using string = basic_string<char>;
+    using wstring = basic_string<wchar_t>;
+    using u8string = basic_string<char8_t>;
+    using u16string = basic_string<char16_t>;
+    using u32string = basic_string<char32_t>;
+
+    namespace detail {
+        constexpr std::size_t fnv1a(
+            const void* data,
+            std::size_t byteLen
+        ) noexcept {
+            constexpr std::size_t offset_basis = 0x811C9DC5u;
+            constexpr std::size_t prime        = 0x01000193u;
+
+            auto* bytes = static_cast<const std::uint8_t*>(data);
+            std::size_t h = offset_basis;
+            for (std::size_t i = 0; i < byteLen; ++i) {
+                h ^= bytes[i];
+                h *= prime;
+            }
+            return h;
+        }
+
+        template <class CharT, class Traits, class Alloc>
+        constexpr std::size_t hash_basic_string(
+            const basic_string<CharT, Traits, Alloc>& str
+        ) noexcept {
+            return fnv1a(str.data(), str.size() * sizeof(CharT));
+        }
+    }
+
+    namespace literals::string_literals {
+        constexpr klibc::string operator""s(const char* str, std::size_t length) noexcept {
+            return klibc::string(str, length);
+        }
+        constexpr klibc::u8string operator""s(const char8_t* str, std::size_t length) noexcept {
+            return klibc::u8string(str, length);
+        }
+        constexpr klibc::u16string operator""s(const char16_t* str, std::size_t length) noexcept {
+            return klibc::u16string(str, length);
+        }
+        constexpr klibc::u32string operator""s(const char32_t* str, std::size_t length) noexcept {
+            return klibc::u32string(str, length);
+        }
+        constexpr klibc::wstring operator""s(const wchar_t* str, std::size_t length) noexcept {
+            return klibc::wstring(str, length);
+        }
+    }
 }
+
+template <class A>
+struct std::hash<klibc::basic_string<char, klibc::char_traits<char>, A>> {
+    using result_type = std::size_t;
+    constexpr result_type operator()(
+        const klibc::basic_string<char, char_traits<char>, A>& str
+    ) const noexcept {
+        return klibc::detail::hash_basic_string(str);
+    }
+};
+
+template <class A>
+struct std::hash<klibc::basic_string<wchar_t, klibc::char_traits<wchar_t>, A>> {
+    using result_type = std::size_t;
+    constexpr result_type operator()(
+        const klibc::basic_string<wchar_t, char_traits<wchar_t>, A>& str
+    ) const noexcept {
+        return klibc::detail::hash_basic_string(str);
+    }
+};
+
+template <class A>
+struct std::hash<klibc::basic_string<char8_t, klibc::char_traits<char8_t>, A>> {
+    using result_type = std::size_t;
+    constexpr result_type operator()(
+        const klibc::basic_string<char8_t, char_traits<char8_t>, A>& str
+    ) const noexcept {
+        return klibc::detail::hash_basic_string(str);
+    }
+};
+
+template <class A>
+struct std::hash<klibc::basic_string<char16_t, klibc::char_traits<char16_t>, A>> {
+    using result_type = std::size_t;
+    constexpr result_type operator()(
+        const klibc::basic_string<char16_t, char_traits<char16_t>, A>& str
+    ) const noexcept {
+        return klibc::detail::hash_basic_string(str);
+    }
+};
+
+template <class A>
+struct std::hash<klibc::basic_string<char32_t, klibc::char_traits<char32_t>, A>> {
+    using result_type = std::size_t;
+    constexpr result_type operator()(
+        const klibc::basic_string<char32_t, char_traits<char32_t>, A>& str
+    ) const noexcept {
+        return klibc::detail::hash_basic_string(str);
+    }
+};

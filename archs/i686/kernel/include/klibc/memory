@@ -3,15 +3,6 @@
 #include <utility>
 
 namespace klibc {
-#if __cpp_constexpr_dynamic_alloc
-    template <typename T, typename... Args>
-    constexpr auto construct_at(T* location, Args&&... args) noexcept
-        -> decltype(::new((void*)0) T(std::declval<Args>()...))
-    {
-        return ::new((void*)location) T(std::forward<Args>(args)...);
-    }
-#endif
-
     template <class T>
     [[nodiscard]] inline constexpr T* addressof(T& value) noexcept {
 #ifdef __NOS_KERNEL_COMPILER_GCC__
@@ -24,10 +15,214 @@ namespace klibc {
     template <class T>
     const T* addressof(const T&&) = delete;
 
+    template <typename T, typename... Args>
+    constexpr auto construct_at(T* location, Args&&... args) noexcept
+    {
+        if constexpr (std::is_array_v<T>) {
+            static_assert(sizeof...(Args) == 0, "Cannot construct an array with arguments");
+            return ::new (addressof(*location)) T[1]();
+        } else {
+            return ::new (addressof(*location)) T(std::forward<Args>(args)...);
+        }
+    }
+
+    template <class T>
+    constexpr void destroy_at(T* p) noexcept
+    {
+        if constexpr(std::is_array_v<T>)
+            for (auto& elem : *p)
+                destroy_at(std::addressof(elem));
+        else
+            p->~T();
+    }
+
+    namespace detail {
+        template <class P, class = void>
+        struct element_type {};
+
+        template <class P>
+        struct element_type<P, std::void_t<typename P::element_type>> {
+            using type = typename P::element_type;
+        };
+
+
+        // -----------------------------------------------------------------------------
+        // difference_type
+        // -----------------------------------------------------------------------------
+
+        template <class P, class = void>
+        struct difference_type {
+            using type = std::ptrdiff_t;
+        };
+
+        template <class P>
+        struct difference_type<P, std::void_t<typename P::difference_type>> {
+            using type = typename P::difference_type;
+        };
+
+        template <class P, class U, class = void>
+        struct member_rebind {};
+
+        template<class P, class U>
+        struct member_rebind<
+            P,
+            U,
+            std::void_t<typename P::template rebind<U>>
+        > {
+            using type = typename P::template rebind<U>;
+        };
+
+
+        template<class P, class U>
+        struct template_rebind;
+
+        template <
+            template<class, class...> class Template,
+            class T,
+            class... Args,
+            class U
+        >
+        struct template_rebind<Template<T, Args...>, U> {
+        private:
+            using P = Template<T, Args...>;
+
+            template<class X, class = void>
+            struct select {
+                using type = Template<U, Args...>;
+            };
+
+            template <class X>
+            struct select<
+                X,
+                std::void_t<typename X::template rebind<U>>
+            > {
+                using type = typename X::template rebind<U>;
+            };
+
+        public:
+            using type = typename select<P>::type;
+        };
+
+
+        template<class P, class = void>
+        struct pointer_traits_impl {};
+
+        template<class P>
+        struct pointer_traits_impl<
+            P,
+            std::void_t<typename P::element_type>
+        > {
+            using pointer = P;
+            using element_type = typename P::element_type;
+            using difference_type = typename detail::difference_type<P>::type;
+
+            template<class U>
+            using rebind = typename detail::member_rebind<P, U>::type;
+
+            static pointer pointer_to(element_type& r) noexcept {
+                return P::pointer_to(r);
+            }
+        };
+
+        template<
+            template<class, class...> class Template,
+            class T,
+            class... Args
+        >
+        requires (!requires {
+            typename Template<T, Args...>::element_type;
+        })
+        struct pointer_traits_impl<Template<T, Args...>> {
+            using pointer = Template<T, Args...>;
+            using element_type = T;
+            using difference_type =
+                typename detail::difference_type<Template<T, Args...>>::type;
+
+            template<class U>
+            using rebind =
+                typename detail::template_rebind<
+                    Template<T, Args...>,
+                    U
+                >::type;
+            
+            static pointer pointer_to(element_type& r) noexcept {
+                return pointer::pointer_to(r);
+            }
+        };
+    }
+
+    template <class Ptr>
+    struct pointer_traits {
+        using pointer         = Ptr;
+        using element_type    = typename detail::pointer_traits_impl<Ptr>::element_type;
+        using difference_type = typename detail::pointer_traits_impl<Ptr>::difference_type;
+
+        template <class U>
+        using rebind = typename detail::pointer_traits_impl<Ptr>::template rebind<U>;
+
+        static pointer pointer_to(element_type& r) noexcept {
+            return pointer(&r);
+        }
+    };
+
+    template <class T>
+    struct pointer_traits<T*> {
+        using pointer = T*;
+        using element_type = T;
+        using difference_type = std::ptrdiff_t;
+
+        template <class U>
+        using rebind = U*;
+
+        static constexpr pointer pointer_to(element_type& r) noexcept
+        {
+            return std::addressof(r);
+        }
+    };
+
     template <class Alloc>
     struct allocator_traits {
-        using allocator_type = Alloc;
-        using value_type = typename Alloc::value_type
-        using pointer = typename Alloc::pointer;
+        using allocator_type     = Alloc;
+        using value_type         = Alloc::value_type;
+        using pointer            = value_type*;
+        using const_pointer      = pointer_traits<pointer>::template rebind<const value_type>;
+        using void_pointer       = pointer_traits<pointer>::template rebind<void>;
+        using const_void_pointer = pointer_traits<pointer>::template rebind<const void>;
+        using difference_type    = pointer_traits<pointer>::difference_type;
+        using size_type          = std::make_unsigned<difference_type>::type;
+
+        using propagate_on_container_copy_assignment = std::false_type;
+        using propagate_on_container_move_assignment = Alloc::propagate_on_container_move_assignment;
+        using propagate_on_container_swap            = std::false_type;
+        using is_always_equal                        = std::is_empty<Alloc>::type;
     };
+
+    template <class T>
+    struct allocator {
+        using value_type = T;
+        using size_type = std::size_t;
+        using difference_type = std::ptrdiff_t;
+        using propagate_on_container_move_assignment = std::true_type;
+
+        constexpr allocator() noexcept = default;
+        constexpr allocator(const allocator& other) noexcept = default;
+
+        template <class U>
+        constexpr allocator([[maybe_unused]] const allocator<U>& other) noexcept {}
+
+        constexpr ~allocator() noexcept = default;
+
+        [[nodiscard]] constexpr value_type* allocate(size_type n) noexcept {
+            return static_cast<value_type*>(::operator new(n * sizeof(value_type)));
+        }
+
+        void deallocate(value_type* ptr, size_type size) noexcept {
+            ::operator delete(ptr, size);
+        }
+    };
+    template <class T1, class T2>
+    constexpr bool operator==(
+        const allocator<T1>&,
+        const allocator<T2>&
+    ) noexcept { return true; }
 }

@@ -1,6 +1,6 @@
 #include <klibc/cassert>
-#include <io.hpp>
-#include <init.hpp>
+#include <core/io.hpp>
+#include <core/init.hpp>
 
 void __kassert(const char* msg, const char* file, int line, const char* function) {
 #ifdef __NOS_KERNEL_DEBUG__

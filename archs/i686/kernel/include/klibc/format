@@ -1,0 +1,84 @@
+#pragma once
+
+#include <core/init.hpp>
+
+#include <type_traits>
+#include <string_view>
+#include <klibc/string>
+
+namespace klibc {
+    namespace detail {
+        template <typename CharT>
+        struct runtime_format_string {
+            FORCE_INLINE
+            runtime_format_string(std::basic_string_view<CharT> str) noexcept : m_str(str) {}
+
+            runtime_format_string(const runtime_format_string&) = delete;
+            void operator=(const runtime_format_string&) = delete;
+
+        private:
+            std::basic_string_view<CharT> m_str;
+
+            template<typename, typename...>
+            friend struct basic_format_string;
+        };
+
+        template<typename CharT>
+        class sink_iter;
+
+        // An unspecified output iterator type used in the `formattable` concept.
+        template<typename CharT>
+        struct iter_for {
+            using type = std::back_insert_iterator<klibc::basic_string<CharT>>;
+        };
+
+        template<typename CharT>
+        using format_context = basic_format_context<sink_iter<CharT>, CharT>;
+    }
+
+    enum class range_format {
+        disabled,
+        map,
+        set,
+        sequence,
+        string,
+        debug_string
+    };
+
+    template <typename CharT, typename... Args>
+    struct basic_format_string {
+        template <typename T> requires (std::convertible_to<const T&, std::basic_string_view<CharT>>)
+        consteval basic_format_string(const T& string);
+
+        FORCE_INLINE
+        constexpr basic_format_string(detail::runtime_format_string<CharT> str) noexcept :
+            m_str(str.m_str) {}
+
+        FORCE_INLINE constexpr std::basic_string_view<CharT> get() const noexcept { return m_str; }
+
+    private:
+        std::basic_string_view<CharT> m_str;
+    };
+
+    template <class OutputIt, class CharT>
+    class basic_format_context {
+    public:
+        using iterator = OutputIt;
+        using char_type = CharT;
+
+    };
+
+    template< class... Args >
+    using format_string = basic_format_string<char, std::type_identity_t<Args>...>;
+
+    template< class... Args >
+    using wformat_string = basic_format_string<wchar_t, std::type_identity_t<Args>...>;
+
+    using format_context  = detail::format_context<char>;
+    using wformat_context = detail::format_context<wchar_t>;
+
+    using unspecified = void;
+
+    using format_context = basic_format_context<unspecified, char>;
+    using wformat_context = basic_format_context<unspecified, wchar_t>;
+}

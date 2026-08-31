@@ -1,7 +1,7 @@
 #ifndef __KLIBC_ASSERT_H__
 #define __KLIBC_ASSERT_H__
 
-#include <init.hpp>
+#include <core/init.hpp>
 
 void __kassert(const char* msg, const char* file, int line, const char* function);
 

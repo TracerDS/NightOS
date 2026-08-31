@@ -1,24 +1,27 @@
 #pragma once
 
-#include <init.hpp>
+#include <core/init.hpp>
 
 #include <klibc/cstring>
 
 #include <initializer_list>
+#include <iterator>
 
 namespace klibc {
     template <class T, std::size_t N>
     class array {
     public:
-        using value_type      = T;
-        using pointer         = value_type*;
-        using const_pointer   = const value_type*;
-        using reference       = value_type&;
-        using const_reference = const value_type&;
-        using iterator        = pointer;
-        using const_iterator  = const_pointer;
-        using size_type       = std::size_t;
-        using difference_type = std::ptrdiff_t;
+        using value_type             = T;
+        using pointer                = value_type*;
+        using const_pointer          = const value_type*;
+        using reference              = value_type&;
+        using const_reference        = const value_type&;
+        using iterator               = pointer;
+        using const_iterator         = const_pointer;
+        using size_type              = std::size_t;
+        using difference_type        = std::ptrdiff_t;
+        using reverse_iterator       = std::reverse_iterator<iterator>;
+        using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
         constexpr array() noexcept {}
         constexpr array(std::initializer_list<value_type> elems) noexcept {
