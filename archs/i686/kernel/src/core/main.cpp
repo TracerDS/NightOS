@@ -1,32 +1,32 @@
 #include <core/init.hpp>
-#include <cstdint>
 
-#include <terminal.hpp>
+#include <arch/cpu/gdt.hpp>
+#include <arch/interrupts/idt.hpp>
+#include <arch/interrupts/isr.hpp>
+#include <arch/interrupts/irq.hpp>
+#include <arch/interrupts/kernel_interrupts.hpp>
+#include <arch/memory/paging.hpp>
+#include <arch/memory/pmm.hpp>
+#include <arch/memory/vmm.hpp>
+#include <arch/cpu/cpuid.hpp>
 
-#include <descriptors/gdt.hpp>
-#include <descriptors/idt.hpp>
-#include <descriptors/isr.hpp>
-#include <descriptors/irq.hpp>
-#include <descriptors/kernel_interrupts.hpp>
-#include <memory/paging.hpp>
-#include <memory/pmm.hpp>
-#include <memory/vmm.hpp>
-#include <logger.hpp>
-#include <io.hpp>
-#include <interfaces/streams/serial.hpp>
-#include <cpuid.hpp>
-#include <stackframe.hpp>
-#include <keyboard.hpp>
-#include <tests.hpp>
+#include <core/stackframe.hpp>
+#include <core/keyboard.hpp>
+#include <core/tests.hpp>
+#include <core/logger.hpp>
+#include <core/io.hpp>
+#include <core/terminal.hpp>
+
+#include <io/streams/serial.hpp>
+
+#include <video/pixels.hpp>
+#include <boot/protocols/multiboot/multiboot.hpp>
+#include <drivers/storage/ata/atapio.hpp>
 
 #include <klibc/cassert>
 #include <klibc/cctype>
 #include <klibc/string>
-
-#include <video/pixels.hpp>
-#include <grub/multiboot.hpp>
-
-#include <drivers/harddisk/atapio.hpp>
+#include <cstdint>
 
 #define COLOR_BLACK     0x00000000
 #define COLOR_WHITE     0x00FFFFFF
@@ -36,6 +36,7 @@
 
 extern "C" void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info) noexcept;
 extern "C" bool __kernel_check_cpuid__() noexcept;
+extern "C" bool __kernel_are_interrupts_enabled__() noexcept;
 
 extern std::uint8_t __text_start__[];
 extern std::uint8_t __text_end__[];

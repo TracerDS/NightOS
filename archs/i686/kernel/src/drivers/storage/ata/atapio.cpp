@@ -18,8 +18,6 @@ namespace NOS::Drivers::Harddisk::ATAPIO {
     extern "C" void __kernel_serial_write_word__(std::uint16_t port, std::uint16_t data) noexcept;
     extern "C" void __kernel_serial_write_dword__(std::uint16_t port, std::uint32_t data) noexcept;
 
-    extern "C" bool __kernel_are_interrupts_enabled__() noexcept;
-
     ATAPIODriver g_ataDriver;
 
     namespace {

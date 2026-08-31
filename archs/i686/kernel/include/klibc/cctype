@@ -1,6 +1,6 @@
 #pragma once
 
-#include <init.hpp>
+#include <core/init.hpp>
 
 extern "C" {
 #   include <klibc/ctype.h>

@@ -2,8 +2,8 @@
 #include <arch/interrupts/idt.hpp>
 #include <arch/interrupts/isr.hpp>
 
-#include <interfaces/streams/serial.hpp>
-#include <io.hpp>
+#include <io/streams/serial.hpp>
+#include <core/io.hpp>
 
 extern "C" void __kernel_serial_write_byte__(std::uint16_t port, std::uint8_t data);
 

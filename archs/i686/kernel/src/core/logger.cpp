@@ -1,12 +1,7 @@
-#include <logger.hpp>
-
-<<<<<<< Updated upstream:archs/i686/kernel/src/logger.cpp
-#include <interfaces/streams/serial.hpp>
-#include <io.hpp>
-=======
-#include <io/streams/serial.hpp>
+#include <core/logger.hpp>
 #include <core/io.hpp>
->>>>>>> Stashed changes:archs/i686/kernel/src/core/logger.cpp
+
+#include <io/streams/serial.hpp>
 #include <klibc/cstring>
 #include <cstdarg>
 

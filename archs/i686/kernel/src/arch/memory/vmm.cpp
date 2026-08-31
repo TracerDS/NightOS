@@ -1,8 +1,8 @@
-#include <memory/vmm.hpp>
-#include <memory/pmm.hpp>
-#include <memory/paging.hpp>
-#include <logger.hpp>
-#include <io.hpp>
+#include <arch/memory/vmm.hpp>
+#include <arch/memory/pmm.hpp>
+#include <arch/memory/paging.hpp>
+#include <core/logger.hpp>
+#include <core/io.hpp>
 
 #include <cstddef>
 #include <cstdint>

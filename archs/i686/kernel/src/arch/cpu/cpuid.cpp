@@ -1,8 +1,4 @@
-<<<<<<< Updated upstream:archs/i686/kernel/src/cpuid.cpp
-#include <cpuid.hpp>
-=======
 #include <arch/cpu/cpuid.hpp>
->>>>>>> Stashed changes:archs/i686/kernel/src/arch/cpu/cpuid.cpp
 #include <klibc/cstring>
 
 namespace CPUID {

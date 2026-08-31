@@ -1,5 +1,5 @@
-#include <stackframe.hpp>
-#include <io.hpp>
+#include <core/stackframe.hpp>
+#include <core/io.hpp>
 
 namespace NOS::StackFrame {
     void PrintFrames(std::uint32_t maxFrames) noexcept {

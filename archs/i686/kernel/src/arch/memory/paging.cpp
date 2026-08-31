@@ -1,11 +1,9 @@
-#include <memory/paging.hpp>
-#include <memory/pmm.hpp>
-#include <io.hpp>
-#include <logger.hpp>
+#include <arch/memory/paging.hpp>
+#include <arch/memory/pmm.hpp>
+#include <core/io.hpp>
+#include <core/logger.hpp>
 
 #include <cstdint>
-#include <utility>
-#include <type_traits>
 
 namespace NOS::Memory {
     extern "C" void __kernel_load_page_directory__(std::uintptr_t addr) noexcept;

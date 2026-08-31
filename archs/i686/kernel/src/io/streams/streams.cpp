@@ -1,4 +1,4 @@
-#include <interfaces/streams/streams.hpp>
+#include <io/streams/streams.hpp>
 
 namespace NOS::Streams {
     namespace detail {
