@@ -39,30 +39,32 @@ clean-compile: clean all
 
 $(ARCHS_COMPILE):
 	$(eval __CURRENT_ARCH__ := $(@))
-	@echo "Building for architecture: $(__CURRENT_ARCH__)"
+	@echo "\033[38;5;63mBuilding for architecture: $(__CURRENT_ARCH__)\033[0m"
 	$(MAKE) -C archs/$(__CURRENT_ARCH__) compile
-	@echo "Building complete!"
+	@echo "\033[32mBuilding complete!\033[0m"
 	@echo ""
 
 $(ARCHS_CLEAN):
 	$(eval __CURRENT_ARCH__ := $(@:clean-%=%))
-	@echo "Cleaning for architecture: $(__CURRENT_ARCH__)"
+	@echo "\033[38;5;63mCleaning for architecture: $(__CURRENT_ARCH__)\033[0m"
 	$(MAKE) -C archs/$(__CURRENT_ARCH__) clean
-	@echo "Cleaning complete!"
+	@echo "\033[32mCleaning complete!\033[0m"
 	@echo ""
 
 $(ARCHS_LINK): $(ARCHS_COMPILE)
 	$(eval __CURRENT_ARCH__ := $(@:link-%=%))
 	$(eval __OS_PATH__ := archs/$(__CURRENT_ARCH__)/$(BIN_DIR)/$(__CURRENT_ARCH__).$(BIN_EXT))
-	@echo "Linking for architecture: $(__CURRENT_ARCH__)"
+	@echo "\033[38;5;63mLinking for architecture: $(__CURRENT_ARCH__)\033[0m"
 	$(MAKE) -C archs/$(__CURRENT_ARCH__) link
-	@echo "Linking complete!"
+	@echo "\033[32mLinking complete!\033[0m"
 	@echo ""
-	@echo "Making grub image for architecture: $(__CURRENT_ARCH__)"
+	@echo "\033[38;5;63mMaking grub image for architecture: $(__CURRENT_ARCH__)\033[0m"
 
 	scripts/check_grub.sh $(__OS_PATH__)
 	scripts/make_grub_image.sh $(__CURRENT_ARCH__) $(__OS_PATH__)
 	scripts/make_debug_symbols.sh $(__OS_PATH__)
+
+	@echo "\033[38;5;83mBuild finished!\033[0m"
 
 info:
 	@echo "Available architectures:"
