@@ -19,3 +19,8 @@ cp $2 $isodir_path/boot/$iso_name.bin
 cp config/grub/grub.$1.cfg $isodir_path/boot/grub/grub.cfg
 grub-mkrescue -o $raw_path_no_ext.iso $isodir_path
 qemu-img create -f raw "$raw_path_no_ext"_disk.img 64M
+mkfs.vfat -F 16 -n NIGHTOS "$raw_path_no_ext"_disk.img
+echo "Hello from FAT16!" > /tmp/hello.txt
+mcopy -i "$raw_path_no_ext"_disk.img /tmp/hello.txt ::/hello.txt
+mmd   -i "$raw_path_no_ext"_disk.img ::/subdir
+mcopy -i "$raw_path_no_ext"_disk.img /tmp/hello.txt ::/subdir/nested.txt
