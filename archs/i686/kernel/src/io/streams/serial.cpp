@@ -1,5 +1,6 @@
 #include <io/streams/serial.hpp>
 #include <core/io.hpp>
+#include <core/bits.hpp>
 
 namespace NOS::Serial {
     extern "C" std::uint8_t __kernel_serial_read_byte__(Port port) noexcept;
@@ -115,12 +116,12 @@ namespace NOS::Serial {
     }
     bool __serial_is_ready_to_read__(Port port) noexcept {
         auto read = __kernel_serial_read_byte__(port + 5);
-        return Utils::Bits::is_set(read, LSR::DATA_READY);
+        return Bits::is_set(read, LSR::DATA_READY);
     }
 
     bool __serial_is_ready_to_write__(Port port) noexcept {
         auto read = __kernel_serial_read_byte__(port + 5);
-        return Utils::Bits::is_set(read, LSR::TH_REGISTER_EMPTY);
+        return Bits::is_set(read, LSR::TH_REGISTER_EMPTY);
     }
     
     static constexpr std::uint64_t __gs_max_wait_timeout__ = 10'0000;

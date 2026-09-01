@@ -2,10 +2,10 @@
 
 #include <core/init.hpp>
 #include <klibc/array>
+#include <klibc/array_view>
 
 #include <cstddef>
 #include <cstdint>
-#include <concepts>
 
 struct multiboot_info;
 
@@ -21,8 +21,9 @@ namespace NOS::Memory {
             bool used
         ) noexcept;
 
-        Utils::array_view<void*> request_pages(std::size_t pages) noexcept;
-        void free_pages(Utils::array_view<void*> addr) noexcept;
+
+        klibc::array_view<void*> request_pages(std::size_t pages) noexcept;
+        void free_pages(klibc::array_view<void*> addr) noexcept;
     private:
         // Bitmap: 1 bit per 4KB page. Each bit: 1 = used, 0 = free
         // 0x20000 bytes = 4GB of memory

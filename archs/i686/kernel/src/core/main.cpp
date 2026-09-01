@@ -1,3 +1,4 @@
+#include "klibc/format"
 #include <core/init.hpp>
 
 #include <arch/cpu/gdt.hpp>
@@ -22,6 +23,11 @@
 #include <video/pixels.hpp>
 #include <boot/protocols/multiboot/multiboot.hpp>
 #include <drivers/storage/ata/atapio.hpp>
+#include <drivers/storage/block/ata_block_device.hpp>
+#include <drivers/filesystem/fat.hpp>
+
+#include <fs/fat/fat16.hpp>
+#include <fs/vfs/vfs.hpp>
 
 #include <klibc/cassert>
 #include <klibc/cctype>
@@ -144,29 +150,25 @@ void __kernel_main__(std::uint32_t magic, multiboot_info* mb_info) noexcept {
 
 	ATAPIO::g_ataDriver.init();
 
-	IO::kprintf("ATA Driver initialized!\r\n");
-	IO::kprintf("Detected devices:\r\n");
-	for (const auto& device : ATAPIO::g_ataDriver) {
-		IO::kprintf(
-			"  - %d %s %s %s\r\n",
-			device.id,
-			device.model,
-			device.isPrimary ? "Primary" : "Secondary",
-			device.driveType == ATAPIO::DriveType::MASTER
-				? "Master" : "Slave"
-		);
+	std::uint16_t dataDiskId = 0xFFFF;
+	for (const auto& dev : ATAPIO::g_ataDriver) {
+		if (dev.isSelected && dev.sectorCount == 131072) { // 64MB / 512
+			dataDiskId = dev.id;
+			break;
+		}
 	}
-
-	klibc::string buff(32, '\0');
-
-	auto result = ATAPIO::g_ataDriver.read_bytes(0, 0, buff.size(), &buff[0]);
-	IO::kprintf("Read result: %d\r\n", std::to_underlying(result));
-	IO::kprintf("Read data:\r\n");
-
-	for (std::size_t i = 0; i < buff.size(); ++i) {
-		IO::kprintf("%02X ", static_cast<std::uint8_t>(buff[i]));
-		if ((i + 1) % 16 == 0) {
-			IO::kprintf("\r\n");
+	if (dataDiskId == 0xFFFF) {
+		IO::kprintf_color("No data disk found!\r\n", VGAColor::VGA_COLOR_LIGHT_RED, VGAColor::VGA_COLOR_BLACK);
+	} else {
+		static NOS::Storage::Block::ATABlockDevice bootDisk(dataDiskId);
+		static NOS::Filesystem::FAT::FAT16Filesystem fatFS(bootDisk);
+		if (fatFS.init()) {
+			NOS::VFS::Mount(&fatFS);
+			NOS::VFS::ListDir("/", [](const NOS::VFS::FileInfo& info, void*) {
+				IO::kprintf("  %s%s (%lu bytes)\r\n",
+					info.name.c_str(), info.isDirectory ? "/" : "",
+					static_cast<unsigned long>(info.size));
+			}, nullptr);
 		}
 	}
 

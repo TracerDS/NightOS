@@ -50,4 +50,16 @@ namespace NOS::Logger {
             message
         );
     }
+    
+    template <class... Args>
+    void Log(klibc::format_string<Args...> fmt, Args&&... args) noexcept {
+        // Use kprintf to format the message
+        IO::kprintf(fmt, std::forward<Args>(args)...);
+    }
+
+    template <class... Args>
+    void LogError(klibc::format_string<Args...> fmt, Args&&... args) noexcept {
+        // Use kprintf to format the message
+        IO::kprintf(fmt, std::forward<Args>(args)...);
+    }
 }

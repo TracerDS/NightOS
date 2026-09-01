@@ -4,7 +4,10 @@
 #include <boot/protocols/multiboot/multiboot.hpp>
 #include <klibc/cstring>
 #include <klibc/array>
+#include <klibc/array_view>
 #include <core/logger.hpp>
+#include <core/bits.hpp>
+#include <core/utils.hpp>
 
 #include <utility>
 #include <limits>
@@ -22,7 +25,7 @@ namespace NOS::Memory {
         }
 
         if (
-            !Utils::Bits::is_set(mb_info->flags, MULTIBOOT_INFO_MEM_MAP) ||
+            !Bits::is_set(mb_info->flags, MULTIBOOT_INFO_MEM_MAP) ||
             mb_info->mmap_addr == 0 ||
             mb_info->mmap_length == 0
         ) {
@@ -186,9 +189,9 @@ namespace NOS::Memory {
         }
 
         if (used) {
-            Utils::Bits::set_bit(m_bitmap[byte_index], bit_index);
+            Bits::set_bit(m_bitmap[byte_index], bit_index);
         } else {
-            Utils::Bits::clear_bit(m_bitmap[byte_index], bit_index);
+            Bits::clear_bit(m_bitmap[byte_index], bit_index);
         }
     }
     
@@ -233,7 +236,7 @@ namespace NOS::Memory {
         }
     }
 
-    Utils::array_view<void*> PhysicalMemoryAllocator::request_pages(
+    klibc::array_view<void*> PhysicalMemoryAllocator::request_pages(
         std::size_t pages
     ) noexcept {
         // Validate input
@@ -263,7 +266,7 @@ namespace NOS::Memory {
                 }
 
                 // If ANY bit is set (page is used), this block won't work
-                if (Utils::Bits::is_bit_set(m_bitmap[byte_index], bit_index)) {
+                if (Bits::is_bit_set(m_bitmap[byte_index], bit_index)) {
                     block_found = false;
                     break;
                 }
@@ -275,7 +278,7 @@ namespace NOS::Memory {
                     std::uint64_t byte_index = index / 8;
                     std::uint8_t bit_index = index % 8;
 
-                    Utils::Bits::set_bit(m_bitmap[byte_index], bit_index);
+                    Bits::set_bit(m_bitmap[byte_index], bit_index);
                 }
 
                 return {
@@ -287,7 +290,7 @@ namespace NOS::Memory {
         return nullptr;
     }
 
-    void PhysicalMemoryAllocator::free_pages(Utils::array_view<void*> addr) noexcept {
+    void PhysicalMemoryAllocator::free_pages(klibc::array_view<void*> addr) noexcept {
         if (!addr) {
             return;
         }

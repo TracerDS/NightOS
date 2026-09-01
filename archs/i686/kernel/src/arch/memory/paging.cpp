@@ -1,7 +1,10 @@
 #include <arch/memory/paging.hpp>
 #include <arch/memory/pmm.hpp>
+#include <arch/interrupts/kernel_interrupts.hpp>
 #include <core/io.hpp>
 #include <core/logger.hpp>
+#include <core/utils.hpp>
+#include <core/bits.hpp>
 
 #include <cstdint>
 
@@ -105,7 +108,7 @@ namespace NOS::Memory {
         flags |= PageFlags::PAGE_PRESENT;
 
         // 4MB page mapping
-        if (Utils::Bits::is_set(flags, PageFlags::PAGE_SIZE_ENABLE)) {
+        if (Bits::is_set(flags, PageFlags::PAGE_SIZE_ENABLE)) {
             // Large pages require 4MB alignment.
             m_pageDirectory[pageDirIndex] = (physAddr & 0xFFC00000) | flags;
             __kernel_flush_tlb_entry__(virtualAddr);
@@ -115,14 +118,14 @@ namespace NOS::Memory {
         auto pageDirEntry = m_pageDirectory[pageDirIndex];
 
         if (
-            Utils::Bits::is_set(pageDirEntry, PageFlags::PAGE_PRESENT) && 
-            Utils::Bits::is_set(pageDirEntry, PageFlags::PAGE_SIZE_ENABLE)
+            Bits::is_set(pageDirEntry, PageFlags::PAGE_PRESENT) && 
+            Bits::is_set(pageDirEntry, PageFlags::PAGE_SIZE_ENABLE)
         ) {
             Logger::LogError(
                 "[Paging]: Trying to map 4KB page at 0x%08lX but 4MB page already exists!\r\n",
                 virtualAddr
             );
-            Utils::Asm::KernelPanic();
+            Interrupts::KernelPanic();
             return;
         }
 
@@ -130,7 +133,7 @@ namespace NOS::Memory {
             PT_BASE_VIRT + (pageDirIndex * 0x1000)
         );
         
-        if (!Utils::Bits::is_set(pageDirEntry, PageFlags::PAGE_PRESENT)) {
+        if (!Bits::is_set(pageDirEntry, PageFlags::PAGE_PRESENT)) {
             auto newTablePhys = Memory::g_pmmAllocator.request_pages(1);
             if (!newTablePhys) {
                 // Out of memory. PANIC
@@ -140,7 +143,7 @@ namespace NOS::Memory {
                     physAddr, virtualAddr
                 );
 #endif
-                Utils::Asm::KernelPanic();
+                Interrupts::KernelPanic();
                 return;
             }
 
@@ -162,13 +165,13 @@ namespace NOS::Memory {
 
         auto pageDirEntry = m_pageDirectory[pageDirIndex];
 
-        if (!Utils::Bits::is_set(pageDirEntry, PageFlags::PAGE_PRESENT)) {
+        if (!Bits::is_set(pageDirEntry, PageFlags::PAGE_PRESENT)) {
             // Page not present
             return;
         }
 
         // 4MB page
-        if (Utils::Bits::is_set(pageDirEntry, PageFlags::PAGE_SIZE_ENABLE)) {
+        if (Bits::is_set(pageDirEntry, PageFlags::PAGE_SIZE_ENABLE)) {
             m_pageDirectory[pageDirIndex] = 0;
         } else {
             // 4 KB page

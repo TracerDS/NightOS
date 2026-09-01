@@ -1,3 +1,4 @@
+#include "core/io.hpp"
 #include <cstdint>
 
 namespace __cxxabiv1 {
@@ -107,5 +108,16 @@ extern "C" {
                 entry.destructor = nullptr; // Mark as called
             }
         }
+    }
+}
+
+namespace std {
+    [[noreturn]] void terminate() noexcept {
+        NOS::IO::kprintf_color(
+            "std::terminate() called!\r\n",
+            NOS::Terminal::VGAColor::VGA_COLOR_RED,
+            NOS::Terminal::VGAColor::VGA_COLOR_BLACK
+        );
+        ::abort();
     }
 }

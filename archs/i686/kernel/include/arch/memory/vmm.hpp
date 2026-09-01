@@ -13,6 +13,7 @@ namespace NOS::Memory {
 
         void* allocate(std::size_t size) noexcept;
         void free(void* ptr) noexcept;
+        void free(void* ptr, std::size_t size) noexcept;
     };
 
     extern VirtualMemoryAllocator g_vmmAllocator;

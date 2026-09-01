@@ -98,12 +98,12 @@ namespace NOS::Drivers::Harddisk::ATAPIO {
 
                 do {
                     status = __kernel_serial_read_byte__(base + Bus::STATUS);
-                    if (Utils::Bits::is_set(status, Status::ERROR)) {
+                    if (Bits::is_set(status, Status::ERROR)) {
                         break;
                     }
-                } while (!Utils::Bits::is_set(status, Status::DATA_REQUEST));
+                } while (!Bits::is_set(status, Status::DATA_REQUEST));
 
-                if (Utils::Bits::is_set(status, Status::ERROR)) {
+                if (Bits::is_set(status, Status::ERROR)) {
                     ++index;
                     continue;
                 }
@@ -152,7 +152,7 @@ namespace NOS::Drivers::Harddisk::ATAPIO {
         std::uint8_t status;
         do {
             status = __kernel_serial_read_byte__(port + Bus::STATUS);
-        } while (Utils::Bits::is_set(status, Status::BUSY));
+        } while (Bits::is_set(status, Status::BUSY));
     }
 
     // Polls BSY clear then DRQ set (or ERR/DF set) for a data transfer.
@@ -165,19 +165,19 @@ namespace NOS::Drivers::Harddisk::ATAPIO {
             if (++spins > pollTimeout) {
                 return ATAResult::TIMEOUT;
             }
-        } while (Utils::Bits::is_set(status, Status::BUSY));
+        } while (Bits::is_set(status, Status::BUSY));
 
-        if (Utils::Bits::is_set(status, Status::DRIVE_FAULT)) {
+        if (Bits::is_set(status, Status::DRIVE_FAULT)) {
             return ATAResult::DEVICE_FAULT;
         }
-        if (Utils::Bits::is_set(status, Status::ERROR)) {
+        if (Bits::is_set(status, Status::ERROR)) {
             return ATAResult::COMMAND_ABORTED;
         }
 
         spins = 0;
-        while (!Utils::Bits::is_set(status, Status::DATA_REQUEST)) {
+        while (!Bits::is_set(status, Status::DATA_REQUEST)) {
             status = __kernel_serial_read_byte__(port + Bus::STATUS);
-            if (Utils::Bits::is_set(status, Status::ERROR)) {
+            if (Bits::is_set(status, Status::ERROR)) {
                 return ATAResult::COMMAND_ABORTED;
             }
             if (++spins > pollTimeout) {
@@ -253,6 +253,7 @@ namespace NOS::Drivers::Harddisk::ATAPIO {
         __kernel_serial_write_byte__(base + Bus::LBA_MID, static_cast<std::uint8_t>((lba >> 8) & 0xFF));
         __kernel_serial_write_byte__(base + Bus::LBA_HIGH, static_cast<std::uint8_t>((lba >> 16) & 0xFF));
         __kernel_serial_write_byte__(base + Bus::COMMAND, static_cast<std::uint8_t>(Command::READ_SECTORS_LBA28));
+        wait_delay(base);
 
         for (std::uint16_t s = 0; s < sectorCount; ++s) {
             ATAResult res = poll_for_transfer(base);
@@ -287,6 +288,7 @@ namespace NOS::Drivers::Harddisk::ATAPIO {
         __kernel_serial_write_byte__(static_cast<std::uint16_t>(base + Bus::LBA_MID), static_cast<std::uint8_t>((lba >> 8) & 0xFF));
         __kernel_serial_write_byte__(static_cast<std::uint16_t>(base + Bus::LBA_HIGH), static_cast<std::uint8_t>((lba >> 16) & 0xFF));
         __kernel_serial_write_byte__(static_cast<std::uint16_t>(base + Bus::COMMAND), static_cast<std::uint8_t>(Command::WRITE_SECTORS_LBA28));
+        wait_delay(base);
 
         for (std::uint16_t s = 0; s < sectorCount; ++s) {
             ATAResult res = poll_for_transfer(base);
@@ -335,6 +337,7 @@ namespace NOS::Drivers::Harddisk::ATAPIO {
         __kernel_serial_write_byte__(base + Bus::LBA_HIGH, static_cast<std::uint8_t>((lba >> 16) & 0xFF));
 
         __kernel_serial_write_byte__(base + Bus::COMMAND, std::to_underlying(Command::READ_SECTORS_LBA48));
+        wait_delay(base);
 
         for (std::uint32_t s = 0; s < sectorCount; ++s) {
             ATAResult res = poll_for_transfer(base);
@@ -375,8 +378,8 @@ namespace NOS::Drivers::Harddisk::ATAPIO {
         __kernel_serial_write_byte__(base + Bus::LBA_LOW, static_cast<std::uint8_t>(lba & 0xFF));
         __kernel_serial_write_byte__(base + Bus::LBA_MID, static_cast<std::uint8_t>((lba >> 8) & 0xFF));
         __kernel_serial_write_byte__(base + Bus::LBA_HIGH, static_cast<std::uint8_t>((lba >> 16) & 0xFF));
-
         __kernel_serial_write_byte__(base + Bus::COMMAND, std::to_underlying(Command::WRITE_SECTORS_LBA48));
+        wait_delay(base);
 
         for (std::uint32_t s = 0; s < sectorCount; ++s) {
             ATAResult res = poll_for_transfer(base);
@@ -477,9 +480,9 @@ namespace NOS::Drivers::Harddisk::ATAPIO {
             status = __kernel_serial_read_byte__(base + Bus::STATUS);
             if (++spins > pollTimeout)
                 return ATAResult::TIMEOUT;
-        } while (Utils::Bits::is_bit_set(status, Status::BUSY));
+        } while (Bits::is_bit_set(status, Status::BUSY));
 
-        if (Utils::Bits::is_bit_set(status, Status::ERROR)) {
+        if (Bits::is_bit_set(status, Status::ERROR)) {
             return ATAResult::COMMAND_ABORTED;
         }
         return ATAResult::OK;

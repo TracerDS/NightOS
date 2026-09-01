@@ -1,5 +1,6 @@
 #include <arch/interrupts/idt.hpp>
 #include <arch/cpu/gdt.hpp>
+#include <core/bits.hpp>
 
 namespace NOS::Interrupts::IDT {
     extern "C" bool __kernel_load_IDT__ (
@@ -34,13 +35,13 @@ namespace NOS::Interrupts::IDT {
     }
 
     void EnableEntry(std::uint8_t interrupt) noexcept {
-        Utils::Bits::set(
+        Bits::set(
             m_entries[interrupt].flags,
             Descriptors::GDT::AccessType::AT_VALID_SEGMENT
         );
     }
     void DisableEntry(std::uint8_t interrupt) noexcept {
-        Utils::Bits::clear(
+        Bits::clear(
             m_entries[interrupt].flags,
             Descriptors::GDT::AccessType::AT_VALID_SEGMENT
         );

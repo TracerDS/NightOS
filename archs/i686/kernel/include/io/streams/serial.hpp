@@ -1,6 +1,7 @@
 #pragma once
 
 #include <core/init.hpp>
+#include <core/utils.hpp>
 
 #include <cstdint>
 #include <type_traits>

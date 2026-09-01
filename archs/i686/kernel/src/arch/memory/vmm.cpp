@@ -1,8 +1,10 @@
 #include <arch/memory/vmm.hpp>
 #include <arch/memory/pmm.hpp>
 #include <arch/memory/paging.hpp>
+#include <arch/interrupts/kernel_interrupts.hpp>
 #include <core/logger.hpp>
 #include <core/io.hpp>
+#include <core/utils.hpp>
 
 #include <cstddef>
 #include <cstdint>
@@ -41,7 +43,7 @@ namespace NOS::Memory {
                 Terminal::VGAColor::VGA_COLOR_LIGHT_RED,
                 Terminal::VGAColor::VGA_COLOR_BLACK
             );
-            Utils::Asm::KernelPanic();
+            Interrupts::KernelPanic();
             return;
         }
     }
@@ -101,14 +103,6 @@ namespace NOS::Memory {
     void* LinkedListAllocator::Allocate(std::size_t size) noexcept {
         std::size_t alignedSize = Utils::align_up(size, alignof(std::max_align_t));
 
-#ifdef __NOS_KERNEL_DEBUG__
-        Logger::Log(
-            "[VMM] Allocating %lu bytes (aligned to %lu bytes)\r\n",
-            size,
-            alignedSize
-        );
-#endif
-
         while (true) {
             NodeHeader* current = head;
 
@@ -130,9 +124,17 @@ namespace NOS::Memory {
                         current->next = newNode;
                     }
                     current->isFree = false;
-                    return reinterpret_cast<void*>(
-                        reinterpret_cast<std::uintptr_t>(current) + sizeof(NodeHeader)
-                    );
+
+                    auto ptr = reinterpret_cast<std::uintptr_t>(current) + sizeof(NodeHeader);
+#ifdef __NOS_KERNEL_DEBUG__
+        Logger::Log(
+            "[VMM] Allocating %lu bytes (aligned to %lu bytes) at 0x%08lX\r\n",
+            size,
+            alignedSize,
+            ptr
+        );
+#endif
+                    return reinterpret_cast<void*>(ptr);
                 }
                 current = current->next;
             }
@@ -226,6 +228,9 @@ namespace NOS::Memory {
     void VirtualMemoryAllocator::free(void* ptr) noexcept {
         g_linkedListAllocator.Free(ptr);
     }
+    void VirtualMemoryAllocator::free(void* ptr, [[maybe_unused]] std::size_t size) noexcept {
+        g_linkedListAllocator.Free(ptr);
+    }
 }
 
 void* operator new(std::size_t size) {
@@ -238,11 +243,11 @@ void operator delete(void* ptr) noexcept {
     NOS::Memory::g_vmmAllocator.free(ptr);
 }
 void operator delete(void* ptr, [[maybe_unused]] std::size_t size) noexcept {
-    NOS::Memory::g_vmmAllocator.free(ptr);
+    NOS::Memory::g_vmmAllocator.free(ptr,size);
 }
 void operator delete[](void* ptr) noexcept {
     NOS::Memory::g_vmmAllocator.free(ptr);
 }
 void operator delete[](void* ptr, [[maybe_unused]] std::size_t size) noexcept {
-    NOS::Memory::g_vmmAllocator.free(ptr);
+    NOS::Memory::g_vmmAllocator.free(ptr, size);
 }
