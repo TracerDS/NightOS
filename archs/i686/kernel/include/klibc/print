@@ -1,0 +1,25 @@
+#pragma once
+
+#include <core/init.hpp>
+#include <klibc/format>
+#include <klibc/cstdio>
+#include <klibc/unicode.hpp>
+
+namespace klibc {
+    template <class... Args>
+    void print(format_string<Args...> fmt, Args&&... args) {
+        print(stdout, fmt, std::forward<Args>(args)...);
+    }
+
+    template <class... Args>
+    void print(FILE* stream, format_string<Args...> fmt, Args&&... args) {
+        auto fmtArgs = make_format_args(args...);
+        if constexpr (__unicode::__literal_encoding_is_utf8());
+        //     std::vprint_unicode(__stream, __fmt.get(), __fmtargs);
+        else;
+        //     std::vprint_nonunicode(__stream, __fmt.get(), __fmtargs);
+    }
+
+    template <class... Args>
+    void println(format_string<Args...> fmt, Args&&... args) {}
+}

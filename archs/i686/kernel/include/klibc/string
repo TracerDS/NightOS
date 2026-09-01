@@ -1,8 +1,9 @@
 #pragma once
 
-#include <algorithm>
 #include <core/init.hpp>
+#include <core/bits.hpp>
 
+#include <algorithm>
 #include <compare>
 #include <type_traits>
 #include <iterator>
@@ -444,7 +445,7 @@ namespace klibc {
                 return *this;
             
             if (_m_is_heap())
-                m_allocator.deallocate(m_heap.m_data, Tag::get_heap_capacity(m_heap) + 1);
+                m_allocator.deallocate(m_heap.data, Tag::get_heap_capacity(m_heap) + 1);
 
             if (other._m_is_heap()) {
                 m_heap = other.m_heap;
@@ -1858,7 +1859,7 @@ namespace klibc {
             // Materialize into a scratch buffer only when growth is required;
             // otherwise write straight into the tail of the current buffer.
             size_type oldN = size();
-            if (!_m_is_heap() && oldN + addN <= HeapMeta::capacity) {
+            if (!_m_is_heap() && oldN + addN <= StackMeta::capacity) {
                 size_type i = oldN;
                 for (; first != last; ++first, ++i)
                     m_stack.data[i] = *first;
@@ -2335,8 +2336,8 @@ namespace klibc {
         };
 
         struct StackMeta {
-            static constexpr size_type capacity = sizeof(HeapMeta) / sizeof(value_type);
-            value_type data[capacity];
+            static constexpr size_type capacity = sizeof(HeapMeta) / sizeof(value_type) - 1;
+            value_type data[capacity + 1];
         };
 
         struct Tag {
@@ -2345,13 +2346,13 @@ namespace klibc {
             static constexpr size_type capacityMask = longFlag << ((sizeof(size_type) - 1) * 8);
 
             static constexpr auto& byte_of(StackMeta& data) noexcept {
-                return reinterpret_cast<std::uint8_t*>(data.data)[data.capacity - 1];
+                return reinterpret_cast<std::uint8_t*>(data.data)[data.capacity];
             }
             static constexpr auto byte_of(const StackMeta& data) noexcept {
-                return reinterpret_cast<const std::uint8_t*>(data.data)[data.capacity - 1];
+                return reinterpret_cast<const std::uint8_t*>(data.data)[data.capacity];
             }
             static constexpr bool _m_is_heap(const StackMeta& data) noexcept {
-                return NOS::Utils::Bits::is_set(byte_of(data), longFlag);
+                return NOS::Bits::is_set(byte_of(data), longFlag);
             }
             static constexpr bool is_stack(const StackMeta& data) noexcept {
                 return !_m_is_heap(data);

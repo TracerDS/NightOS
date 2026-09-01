@@ -1,0 +1,96 @@
+#include <klibc/cerrno>
+#include <klibc/array>
+
+thread_local errno_t __kerrno__ = 0;
+
+klibc::array __kerrno_messages__ = {
+    "No error",
+    "Argument list too long",
+    "Permission denied",
+    "Address already in use",
+    "Cannot assign requested address",
+    "Address family not supported by protocol",
+    "Resource temporarily unavailable",
+    "Operation already in progress",
+    "Bad file descriptor",
+    "Bad message",
+    "Device or resource busy",
+    "Operation canceled",
+    "No child processes",
+    "Software caused connection abort",
+    "Connection refused",
+    "Connection reset by peer",
+    "Resource deadlock avoided",
+    "Destination address required",
+    "Numerical argument out of domain",
+    "File exists",
+    "Bad address",
+    "File too large",
+    "No route to host",
+    "Identifier removed",
+    "Invalid or incomplete multibyte or wide character",
+    "Operation now in progress",
+    "Interrupted system call",
+    "Invalid argument",
+    "Input/output error",
+    "Transport endpoint is already connected",
+    "Is a directory",
+    "Too many levels of symbolic links",
+    "Too many open files",
+    "Too many links",
+    "Message too long",
+    "File name too long",
+    "Network is down",
+    "Network dropped connection on reset",
+    "Network is unreachable",
+    "Too many open files in system",
+    "No buffer space available",
+    "No data available",
+    "No such device",
+    "No such file or directory",
+    "Exec format error",
+    "No locks available",
+    "Link has been severed",
+    "Cannot allocate memory",
+    "No message of desired type",
+    "Protocol not available",
+    "No space left on device",
+    "Out of streams resources",
+    "Device not a stream",
+    "Function not implemented",
+    "Transport endpoint is not connected",
+    "Not a directory",
+    "Directory not empty",
+    "State not recoverable",
+    "Socket operation on non-socket",
+    "Operation not supported",
+    "Inappropriate ioctl for device",
+    "No such device or address",
+    "Operation not supported",
+    "Value too large for defined data type",
+    "Owner died",
+    "Operation not permitted",
+    "Broken pipe",
+    "Protocol error",
+    "Protocol not supported",
+    "Protocol wrong type for socket",
+    "Numerical result out of range",
+    "Read-only file system",
+    "Illegal seek",
+    "No such process",
+    "Timer expired",
+    "Connection timed out",
+    "Text file busy",
+    "Resource temporarily unavailable",
+    "Invalid cross-device link"
+};
+
+const char* strerror(int error) {
+    if (
+        error < 0 ||
+        static_cast<std::size_t>(error) >= __kerrno_messages__.size()
+    ) {
+        return "Unknown error";
+    }
+    return __kerrno_messages__[error];
+}

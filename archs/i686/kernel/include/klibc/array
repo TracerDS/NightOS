@@ -49,4 +49,15 @@ namespace klibc {
     
     template <typename T, typename... U>
     array(T, U...) -> array<T, 1 + sizeof...(U)>;
+
+    template <class T, class... Args>
+    constexpr auto make_array(Args&&... args)
+        noexcept((noexcept(T(std::forward<Args>(args))) && ...))
+        -> array<T, sizeof...(Args)>
+    {
+        return array<T, sizeof...(Args)>{
+            T(std::forward<Args>(args))...
+        };
+    }
+
 }

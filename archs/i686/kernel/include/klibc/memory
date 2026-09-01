@@ -1,6 +1,7 @@
 #pragma once
 
 #include <utility>
+#include <klibc/cassert>
 
 namespace klibc {
     template <class T>
@@ -213,7 +214,9 @@ namespace klibc {
         constexpr ~allocator() noexcept = default;
 
         [[nodiscard]] constexpr value_type* allocate(size_type n) noexcept {
-            return static_cast<value_type*>(::operator new(n * sizeof(value_type)));
+            auto p = static_cast<value_type*>(::operator new(n * sizeof(value_type)));
+            assert(p && "allocator::allocate: failed to allocate memory");
+            return p;
         }
 
         void deallocate(value_type* ptr, size_type size) noexcept {

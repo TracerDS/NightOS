@@ -6,16 +6,28 @@ extern "C" {
 #   include <klibc/string.h>
 }
 
+// NOLINTBEGIN(misc-unused-using-decls)
+
 namespace klibc {
+    using ::strcpy;
+    using ::strncpy;
+    using ::strcat;
+    using ::strncat;
+
     using ::strlen;
-
-#ifdef __STDC_WANT_LIB_EXT1__
     using ::strnlen_s;
-#endif
 
+    using ::strcmp;
+
+    using ::memchr;
     using ::memcmp;
     using ::memset;
     using ::memset_explicit;
     using ::memcpy;
     using ::memmove;
+    using ::memccpy;
+
+    using ::strerror;
 }
+
+// NOLINTEND(misc-unused-using-decls)

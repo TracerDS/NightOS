@@ -1,0 +1,51 @@
+#pragma once
+
+#include <type_traits>
+#include <cstdint>
+
+namespace klibc {
+    template <typename T>
+    struct array_view {
+        using value_type = std::remove_pointer_t<std::remove_cvref_t<T>>;
+        using pointer = std::add_pointer_t<value_type>;
+        using const_pointer = std::add_pointer_t<std::add_const_t<value_type>>;
+    public:
+        constexpr array_view() noexcept : array_view(nullptr, 0) {}
+        constexpr array_view(std::nullptr_t) noexcept : array_view(nullptr, 0) {}
+        constexpr array_view(pointer data, std::size_t size) noexcept
+            : m_data{data}, m_size{size} {}
+
+        constexpr std::size_t size() const noexcept { return m_size; }
+        constexpr T& operator[](std::size_t index) noexcept { return m_data[index]; }
+        constexpr const T& operator[](std::size_t index) const noexcept { return m_data[index]; }
+        
+        constexpr pointer data() noexcept { return m_data; }
+        constexpr const_pointer data() const noexcept { return m_data; }
+
+        constexpr operator bool() const noexcept {
+            return m_data != nullptr && m_size > 0;
+        }
+        constexpr bool operator==(std::nullptr_t) const noexcept {
+            return m_data == nullptr;
+        }
+        constexpr bool operator!=(std::nullptr_t) const noexcept {
+            return m_data != nullptr;
+        }
+        constexpr operator pointer() noexcept { return data(); }
+        constexpr operator const_pointer() const noexcept { return data(); }
+
+        constexpr std::uintptr_t ToAddress() const noexcept
+            requires std::is_same_v<value_type, void>
+        {
+            return reinterpret_cast<std::uintptr_t>(m_data);
+        }
+        constexpr operator std::uintptr_t() const noexcept
+            requires std::is_same_v<value_type, void>
+        {
+            return ToAddress();
+        }
+    protected:
+        pointer m_data;
+        std::size_t m_size;
+    };
+}

@@ -2,16 +2,37 @@
 
 #include <core/init.hpp>
 
+#include <klibc/string>
+#include <klibc/cassert>
+#include <limits>
 #include <type_traits>
 #include <string_view>
-#include <klibc/string>
 
 namespace klibc {
+    template <typename CharT, typename... Args>
+    struct basic_format_string;
+    
+    template <typename OutputIt, typename CharT>
+    class basic_format_context;
+    
+    template <typename CharT>
+    class basic_format_parse_context;
+    
+    template <typename Context>
+    class basic_format_arg;
+    
+    template <typename Context>
+    class basic_format_args;
+    
+    template <typename T, typename CharT = char>
+    struct formatter;
+
     namespace detail {
         template <typename CharT>
         struct runtime_format_string {
             FORCE_INLINE
-            runtime_format_string(std::basic_string_view<CharT> str) noexcept : m_str(str) {}
+            runtime_format_string(std::basic_string_view<CharT> str) noexcept
+                : m_str(str) {}
 
             runtime_format_string(const runtime_format_string&) = delete;
             void operator=(const runtime_format_string&) = delete;
@@ -19,21 +40,325 @@ namespace klibc {
         private:
             std::basic_string_view<CharT> m_str;
 
-            template<typename, typename...>
+            template <typename, typename...>
             friend struct basic_format_string;
         };
 
-        template<typename CharT>
-        class sink_iter;
+        void invalid_format_string() noexcept;
 
-        // An unspecified output iterator type used in the `formattable` concept.
-        template<typename CharT>
-        struct iter_for {
-            using type = std::back_insert_iterator<klibc::basic_string<CharT>>;
+        // ---------------- format spec ----------------
+        constexpr std::size_t no_precision = static_cast<std::size_t>(-1);
+
+        struct format_spec {
+            char fill = ' ';       // ASCII only (see header notes)
+            char align = '\0';     // '<' '>' '^' or 0 = unset
+            char sign = '-';       // '-' '+' ' '
+            bool alt = false;      // '#'
+            bool zero = false;     // leading '0'
+            std::size_t width = 0;
+            std::size_t precision = no_precision;
+            char type = '\0';      // presentation type, 0 = unset
         };
 
-        template<typename CharT>
-        using format_context = basic_format_context<sink_iter<CharT>, CharT>;
+        template <typename CharT>
+        constexpr format_spec parse_spec(std::basic_string_view<CharT> s) noexcept {
+            format_spec spec;
+            std::size_t i = 0;
+
+            if (i + 1 < s.size() &&
+                (s[i + 1] == CharT('<') || s[i + 1] == CharT('>') || s[i + 1] == CharT('^'))
+            ) {
+                spec.fill = static_cast<char>(s[i]);
+                spec.align = static_cast<char>(s[i + 1]);
+                i += 2;
+            } else if (i < s.size() &&
+                (s[i] == CharT('<') || s[i] == CharT('>') || s[i] == CharT('^'))
+            ) {
+                spec.align = static_cast<char>(s[i]);
+                ++i;
+            }
+
+            if (i < s.size() && (s[i] == CharT('+') || s[i] == CharT('-') || s[i] == CharT(' '))) {
+                spec.sign = static_cast<char>(s[i]);
+                ++i;
+            }
+            if (i < s.size() && s[i] == CharT('#')) { spec.alt = true; ++i; }
+            if (i < s.size() && s[i] == CharT('0')) { spec.zero = true; ++i; }
+
+            if (i < s.size() && s[i] >= CharT('0') && s[i] <= CharT('9')) {
+                std::size_t w = 0;
+                while (i < s.size() && s[i] >= CharT('0') && s[i] <= CharT('9')) {
+                    w = w * 10 + static_cast<std::size_t>(s[i] - CharT('0'));
+                    ++i;
+                }
+                spec.width = w;
+            }
+
+            if (i < s.size() && s[i] == CharT('.')) {
+                ++i;
+                std::size_t p = 0;
+                while (i < s.size() && s[i] >= CharT('0') && s[i] <= CharT('9')) {
+                    p = p * 10 + static_cast<std::size_t>(s[i] - CharT('0'));
+                    ++i;
+                }
+                spec.precision = p;
+            }
+
+            if (i < s.size()) {
+                spec.type = static_cast<char>(s[i]);
+                ++i;
+            }
+
+            return spec;
+        }
+
+        template <typename CharT, std::integral T>
+        constexpr std::size_t to_chars_uint(CharT* buf, T value, int base, bool uppercase) noexcept {
+            CharT tmp[70];
+            std::size_t n = 0;
+            T b = static_cast<T>(base);
+            if (value == 0) {
+                tmp[n++] = CharT('0');
+            }
+            while (value != 0) {
+                auto digit = static_cast<unsigned>(value % b);
+                tmp[n++] = digit < 10
+                    ? CharT('0' + digit)
+                    : CharT((uppercase ? 'A' : 'a') + digit - 10);
+                value /= b;
+            }
+            for (std::size_t i = 0; i < n; ++i) {
+                buf[i] = tmp[n - 1 - i];
+            }
+            return n;
+        }
+
+        // Pads/aligns an already-rendered body according to spec.width/fill/align.
+        template <typename OutputIt, typename CharT>
+        constexpr OutputIt write_aligned(
+            OutputIt out,
+            const CharT* body,
+            std::size_t len,
+            const format_spec& spec,
+            char defaultAlign
+        ) noexcept {
+            if (len >= spec.width) {
+                for (std::size_t i = 0; i < len; ++i) *out++ = body[i];
+                return out;
+            }
+            std::size_t pad = spec.width - len;
+            char align = spec.align ? spec.align : defaultAlign;
+            CharT fillCh = static_cast<CharT>(spec.fill);
+
+            std::size_t left = 0, right = 0;
+            if (align == '<') right = pad;
+            else if (align == '^') { left = pad / 2; right = pad - left; }
+            else left = pad; // '>' / default
+
+            for (std::size_t i = 0; i < left; ++i)  *out++ = fillCh;
+            for (std::size_t i = 0; i < len; ++i)   *out++ = body[i];
+            for (std::size_t i = 0; i < right; ++i) *out++ = fillCh;
+            return out;
+        }
+
+        // Writes [sign][prefix][digits], honoring zero-fill (inserted after
+        // sign/prefix, before digits) or generic alignment otherwise.
+        template <typename OutputIt, typename CharT>
+        constexpr OutputIt write_number(
+            OutputIt out,
+            const CharT* sign, std::size_t signLen,
+            const CharT* prefix, std::size_t prefixLen,
+            const CharT* digits, std::size_t digitsLen,
+            const format_spec& spec
+        ) noexcept {
+            std::size_t contentLen = signLen + prefixLen + digitsLen;
+            if (spec.zero && !spec.align && contentLen < spec.width) {
+                std::size_t zeros = spec.width - contentLen;
+                for (std::size_t i = 0; i < signLen; ++i)   *out++ = sign[i];
+                for (std::size_t i = 0; i < prefixLen; ++i) *out++ = prefix[i];
+                for (std::size_t i = 0; i < zeros; ++i)     *out++ = CharT('0');
+                for (std::size_t i = 0; i < digitsLen; ++i) *out++ = digits[i];
+                return out;
+            }
+            CharT buf[96];
+            std::size_t n = 0;
+            for (std::size_t i = 0; i < signLen; ++i)   buf[n++] = sign[i];
+            for (std::size_t i = 0; i < prefixLen; ++i) buf[n++] = prefix[i];
+            for (std::size_t i = 0; i < digitsLen; ++i) buf[n++] = digits[i];
+            return write_aligned<OutputIt, CharT>(out, buf, n, spec, '>');
+        }
+
+        template <typename OutputIt, typename CharT>
+        constexpr OutputIt format_integral_impl(
+            OutputIt out,
+            unsigned long long magnitude,
+            bool negative,
+            const format_spec& spec
+        ) noexcept {
+            char type = spec.type ? spec.type : 'd';
+            int base = 10;
+            bool upper = false;
+            CharT prefixBuf[2]{};
+            std::size_t prefixLen = 0;
+
+            switch (type) {
+                case 'b':
+                    base = 2;
+                    if (spec.alt) {
+                        prefixBuf[0] = CharT('0');
+                        prefixBuf[1] = CharT('b');
+                        prefixLen = 2;
+                    }
+                    break;
+                case 'B':
+                    base = 2;
+                    if (spec.alt) {
+                        prefixBuf[0] = CharT('0');
+                        prefixBuf[1] = CharT('B');
+                        prefixLen=2;
+                    }
+                    break;
+                case 'o':
+                    base = 8;
+                    if (spec.alt && magnitude != 0) {
+                        prefixBuf[0] = CharT('0');
+                        prefixLen=1;
+                    }
+                    break;
+                case 'x':
+                    base = 16;
+                    if (spec.alt) {
+                        prefixBuf[0] = CharT('0');
+                        prefixBuf[1] = CharT('x');
+                        prefixLen = 2;
+                    }
+                    break;
+                case 'X':
+                    base = 16;
+                    upper = true;
+                    if (spec.alt) {
+                        prefixBuf[0] = CharT('0');
+                        prefixBuf[1] = CharT('X');
+                        prefixLen = 2;
+                    }
+                    break;
+                default:
+                    base = 10;
+                    break;
+            }
+
+            CharT signBuf[1]{};
+            std::size_t signLen = 0;
+            if (negative)                 { signBuf[0] = CharT('-'); signLen = 1; }
+            else if (spec.sign == '+')    { signBuf[0] = CharT('+'); signLen = 1; }
+            else if (spec.sign == ' ')    { signBuf[0] = CharT(' '); signLen = 1; }
+
+            CharT digits[70];
+            std::size_t n = to_chars_uint<CharT>(digits, magnitude, base, upper);
+
+            return write_number<OutputIt, CharT>(
+                out,
+                signBuf,
+                signLen,
+                prefixBuf,
+                prefixLen,
+                digits,
+                n,
+                spec
+            );
+        }
+
+        // Fixed-point only (matches Terminal::write_float's capability).
+        template <typename OutputIt, typename CharT, std::floating_point T>
+        constexpr OutputIt format_float_impl(
+            OutputIt out,
+            T value,
+            const format_spec& spec
+        ) noexcept {
+            bool negative = value < T(0);
+            double mag = negative ? -static_cast<double>(value) : static_cast<double>(value);
+
+            if (mag != mag || mag > (std::numeric_limits<double>::max)()) {
+                const char* s = (mag != mag) ? "nan" : "inf";
+                CharT buf[4];
+                std::size_t n = 0;
+                if (negative)
+                    buf[n++] = CharT('-');
+                for (int i = 0; i < 3; ++i) buf[n++] = CharT(s[i]);
+                return write_aligned<OutputIt, CharT>(out, buf, n, spec, '>');
+            }
+
+            std::size_t precision = spec.precision != no_precision ? spec.precision : 6;
+
+            auto intPart = static_cast<std::uint64_t>(mag);
+            double frac = mag - static_cast<double>(intPart);
+
+            CharT intDigits[24];
+            std::size_t intLen = to_chars_uint<CharT>(intDigits, intPart, 10, false);
+
+            CharT fracDigits[32];
+            std::size_t fracLen = 0;
+            if (precision > 0) {
+                double rounding = 0.5;
+                for (std::size_t i = 0; i < precision; ++i) rounding /= 10.0;
+                frac += rounding;
+                for (std::size_t i = 0; i < precision && fracLen < 32; ++i) {
+                    frac *= 10.0;
+                    auto digit = static_cast<unsigned>(frac);
+                    if (digit > 9) digit = 9;
+                    fracDigits[fracLen++] = CharT('0' + digit);
+                    frac -= digit;
+                }
+            }
+
+            CharT signBuf[1]{};
+            std::size_t signLen = 0;
+            if (negative)              { signBuf[0] = CharT('-'); signLen = 1; }
+            else if (spec.sign == '+') { signBuf[0] = CharT('+'); signLen = 1; }
+            else if (spec.sign == ' ') { signBuf[0] = CharT(' '); signLen = 1; }
+
+            CharT body[96];
+            std::size_t n = 0;
+            for (std::size_t i = 0; i < signLen; ++i) body[n++] = signBuf[i];
+            for (std::size_t i = 0; i < intLen; ++i)  body[n++] = intDigits[i];
+
+            if (precision > 0 || spec.alt) {
+                body[n++] = CharT('.');
+                for (std::size_t i = 0; i < fracLen; ++i) body[n++] = fracDigits[i];
+            }
+
+            if (spec.zero && !spec.align && n < spec.width) {
+                CharT padded[128];
+                std::size_t m = 0;
+                std::size_t zeros = spec.width - n;
+                for (std::size_t i = 0; i < signLen; ++i)    padded[m++] = signBuf[i];
+                for (std::size_t i = 0; i < zeros; ++i)      padded[m++] = CharT('0');
+                for (std::size_t i = signLen; i < n; ++i)    padded[m++] = body[i];
+                for (std::size_t i = 0; i < m; ++i) *out++ = padded[i];
+                return out;
+            }
+
+            return write_aligned<OutputIt, CharT>(out, body, n, spec, '>');
+        }
+
+        template <typename OutputIt, typename CharT>
+        constexpr OutputIt format_pointer_impl(
+            OutputIt out,
+            const void* value,
+            format_spec spec
+        ) noexcept {
+            spec.type = 'x';
+            spec.alt = true;
+            return format_integral_impl<OutputIt, CharT>(
+                out,
+                static_cast<unsigned long long>(reinterpret_cast<std::uintptr_t>(value)),
+                false,
+                spec
+            );
+        }
+
+        template <typename CharT>
+        using format_sink = std::back_insert_iterator<klibc::basic_string<CharT>>;
     }
 
     enum class range_format {
@@ -45,40 +370,677 @@ namespace klibc {
         debug_string
     };
 
-    template <typename CharT, typename... Args>
-    struct basic_format_string {
-        template <typename T> requires (std::convertible_to<const T&, std::basic_string_view<CharT>>)
-        consteval basic_format_string(const T& string);
+    template <typename CharT>
+    class basic_format_parse_context {
+    public:
+        using char_type = CharT;
+        using const_iterator = typename std::basic_string_view<CharT>::const_iterator;
+        using iterator = const_iterator;
 
-        FORCE_INLINE
-        constexpr basic_format_string(detail::runtime_format_string<CharT> str) noexcept :
-            m_str(str.m_str) {}
+        constexpr explicit basic_format_parse_context(std::basic_string_view<CharT> spec) noexcept
+            : m_spec(spec) {}
 
-        FORCE_INLINE constexpr std::basic_string_view<CharT> get() const noexcept { return m_str; }
+        constexpr basic_format_parse_context(const basic_format_parse_context&) = delete;
+        constexpr basic_format_parse_context& operator=(const basic_format_parse_context&) = delete;
+
+        constexpr const_iterator begin() const noexcept { return m_spec.begin(); }
+        constexpr const_iterator end() const noexcept { return m_spec.end(); }
+        constexpr void advance_to(const_iterator it) noexcept {
+            m_spec.remove_prefix(static_cast<std::size_t>(it - m_spec.begin()));
+        }
 
     private:
-        std::basic_string_view<CharT> m_str;
+        std::basic_string_view<CharT> m_spec;
     };
 
-    template <class OutputIt, class CharT>
+    template <typename OutputIt, typename CharT>
     class basic_format_context {
     public:
         using iterator = OutputIt;
         using char_type = CharT;
 
+        constexpr basic_format_context(
+            OutputIt out,
+            basic_format_args<basic_format_context> args
+        ) noexcept
+            : m_out(out), m_args(args)
+        {}
+
+        basic_format_context(const basic_format_context&) = delete;
+        basic_format_context& operator=(const basic_format_context&) = delete;
+
+        constexpr basic_format_arg<basic_format_context> arg(std::size_t id) const noexcept {
+            return m_args.get(id);
+        }
+        constexpr iterator out() noexcept { return m_out; }
+        constexpr void advance_to(iterator it) noexcept { m_out = it; }
+
+    private:
+        iterator m_out;
+        basic_format_args<basic_format_context> m_args;
     };
 
-    template< class... Args >
+    template <typename Context>
+    class basic_format_arg {
+    public:
+        using char_type = typename Context::char_type;
+
+        constexpr basic_format_arg() noexcept = default;
+
+        template <typename T>
+        static constexpr basic_format_arg make(const T& value) noexcept {
+            basic_format_arg arg;
+            arg.m_ptr = static_cast<const void*>(klibc::addressof(value));
+            arg.m_format = &format_impl<T>;
+            return arg;
+        }
+
+        constexpr void format(
+            std::basic_string_view<char_type> spec,
+            Context& ctx
+        ) const {
+            assert(m_format && "klibc::format: attempted to format an empty format argument");
+            m_format(m_ptr, spec, ctx);
+        }
+
+        explicit constexpr operator bool() const noexcept { return m_format != nullptr; }
+
+    private:
+        using format_fn = void (*)(const void*, std::basic_string_view<char_type>, Context&);
+
+        template <typename T>
+        static constexpr void format_impl(
+            const void* ptr,
+            std::basic_string_view<char_type> spec,
+            Context& ctx
+        ) noexcept {
+            formatter<T, char_type> f{};
+            basic_format_parse_context<char_type> pc(spec);
+            pc.advance_to(f.parse(pc));
+            ctx.advance_to(f.format(*static_cast<const T*>(ptr), ctx));
+        }
+
+        const void* m_ptr = nullptr;
+        format_fn m_format = nullptr;
+    };
+
+    namespace detail {
+        template <typename Context, typename... Args>
+        struct format_arg_store {
+            static constexpr std::size_t count = sizeof...(Args);
+            basic_format_arg<Context> args[count == 0 ? 1 : count];
+        };
+
+        template <typename Context, typename... Args>
+        constexpr format_arg_store<Context, Args...> make_format_args_store(
+            const Args&... args
+        ) noexcept {
+            return format_arg_store<Context, Args...>{{
+                basic_format_arg<Context>::make(args)...
+            }};
+        }
+
+        template <typename CharT>
+        class counting_iterator {
+        public:
+            using iterator_category = std::output_iterator_tag;
+            using value_type = void;
+            using difference_type = std::ptrdiff_t;
+            using pointer = void;
+            using reference = void;
+
+            constexpr explicit counting_iterator(std::size_t* count) noexcept : m_count(count) {}
+            constexpr counting_iterator& operator*() noexcept { return *this; }
+            constexpr counting_iterator& operator++() noexcept { return *this; }
+            constexpr counting_iterator operator++(int) noexcept { return *this; }
+            constexpr counting_iterator& operator=(CharT) noexcept { ++(*m_count); return *this; }
+
+        private:
+            std::size_t* m_count;
+        };
+
+        template <typename OutputIt, typename CharT>
+        class truncating_iterator {
+        public:
+            using iterator_category = std::output_iterator_tag;
+            using value_type = void;
+            using difference_type = std::ptrdiff_t;
+            using pointer = void;
+            using reference = void;
+
+            constexpr truncating_iterator(OutputIt out, std::size_t max) noexcept : m_out(out), m_max(max) {}
+            constexpr truncating_iterator& operator*() noexcept { return *this; }
+            constexpr truncating_iterator& operator++() noexcept { return *this; }
+            constexpr truncating_iterator operator++(int) noexcept { return *this; }
+            constexpr truncating_iterator& operator=(CharT c) noexcept {
+                if (m_written < m_max) { *m_out = c; ++m_out; }
+                ++m_written;
+                return *this;
+            }
+            constexpr OutputIt base() const noexcept { return m_out; }
+            constexpr std::size_t count() const noexcept { return m_written; }
+
+        private:
+            OutputIt m_out;
+            std::size_t m_max;
+            std::size_t m_written = 0;
+        };
+    }
+
+    template <typename Context>
+    class basic_format_args {
+    public:
+        constexpr basic_format_args() noexcept = default;
+
+        constexpr basic_format_args(
+            const basic_format_arg<Context>* args,
+            std::size_t count
+        ) noexcept
+            : m_args(args), m_count(count)
+        {}
+
+        template <typename... Args>
+        constexpr basic_format_args(
+            const detail::format_arg_store<Context, Args...>& store
+        ) noexcept
+            : m_args(store.args), m_count(sizeof...(Args))
+        {}
+
+        basic_format_arg<Context> get(std::size_t index) const noexcept {
+            return index < m_count ? m_args[index] : basic_format_arg<Context>{};
+        }
+        constexpr std::size_t size() const noexcept { return m_count; }
+
+    private:
+        const basic_format_arg<Context>* m_args = nullptr;
+        std::size_t m_count = 0;
+    };
+
+    template <typename CharT, typename... Args>
+    struct basic_format_string {
+        template <typename T> requires (
+            std::convertible_to<const T&, std::basic_string_view<CharT>>
+        )
+        consteval basic_format_string(const T& str) noexcept : m_str(str) {
+            std::basic_string_view<CharT> sv = m_str;
+            for (std::size_t i = 0; i < sv.size(); ++i) {
+                CharT c = sv[i];
+                if (c == CharT('{')) {
+                    if (i + 1 < sv.size() && sv[i + 1] == CharT('{')) { ++i; continue; }
+                    std::size_t j = i + 1;
+                    while (j < sv.size() && sv[j] != CharT('}')) ++j;
+                    if (j >= sv.size()) detail::invalid_format_string();
+                    i = j;
+                } else if (c == CharT('}')) {
+                    if (i + 1 < sv.size() && sv[i + 1] == CharT('}')) { ++i; continue; }
+                    detail::invalid_format_string();
+                }
+            }
+        }
+
+        FORCE_INLINE
+        constexpr basic_format_string(
+            detail::runtime_format_string<CharT> str
+        ) noexcept :
+            m_str(str.m_str)
+        {}
+
+        FORCE_INLINE
+        constexpr std::basic_string_view<CharT> get() const noexcept { return m_str; }
+
+    private:
+        std::basic_string_view<CharT> m_str;
+    };
+
+    constexpr auto runtime_format(std::string_view fmt) noexcept {
+        return detail::runtime_format_string<char>(fmt);
+    }
+
+    template <class... Args>
     using format_string = basic_format_string<char, std::type_identity_t<Args>...>;
 
-    template< class... Args >
-    using wformat_string = basic_format_string<wchar_t, std::type_identity_t<Args>...>;
+    using format_context = basic_format_context<detail::format_sink<char>, char>;
 
-    using format_context  = detail::format_context<char>;
-    using wformat_context = detail::format_context<wchar_t>;
+    template <typename OutputIt, typename CharT>
+    using format_args_t = basic_format_args<basic_format_context<OutputIt, CharT>>;
 
-    using unspecified = void;
+    using format_args = format_args_t<detail::format_sink<char>, char>;
 
-    using format_context = basic_format_context<unspecified, char>;
-    using wformat_context = basic_format_context<unspecified, wchar_t>;
+    template <typename CharT>
+    struct formatter<CharT, CharT> {
+        constexpr auto parse(basic_format_parse_context<CharT>& pc) noexcept {
+            m_spec = detail::parse_spec<CharT>(std::basic_string_view<CharT>(pc.begin(), pc.end()));
+            assert(
+                (m_spec.type == '\0' || m_spec.type == 'c' || m_spec.type == 'b' || m_spec.type == 'B' ||
+                 m_spec.type == 'd' || m_spec.type == 'o' || m_spec.type == 'x' || m_spec.type == 'X') &&
+                "klibc::format: invalid presentation type for character argument"
+            );
+            return pc.end();
+        }
+        template <class FormatContext>
+        constexpr auto format(
+            CharT value,
+            FormatContext& ctx
+        ) const noexcept -> typename FormatContext::iterator {
+            auto out = ctx.out();
+            if (m_spec.type && m_spec.type != 'c') {
+                return detail::format_integral_impl<typename FormatContext::iterator, CharT>(
+                    out,
+                    static_cast<unsigned long long>(static_cast<std::uint8_t>(value)),
+                    false,
+                    m_spec
+                );
+            }
+            CharT buf[1] = { value };
+            return detail::write_aligned<typename FormatContext::iterator, CharT>(
+                out,
+                buf,
+                1,
+                m_spec,
+                '<'
+            );
+        }
+    private:
+        detail::format_spec m_spec{};
+    };
+
+    template <typename CharT>
+    struct formatter<bool, CharT> {
+        constexpr auto parse(basic_format_parse_context<CharT>& pc) noexcept {
+            m_spec = detail::parse_spec<CharT>(std::basic_string_view<CharT>(
+                pc.begin(),
+                pc.end()
+            ));
+            return pc.end();
+        }
+        template <class FormatContext>
+        constexpr auto format(
+            bool value,
+            FormatContext& ctx
+        ) const noexcept -> typename FormatContext::iterator {
+            auto out = ctx.out();
+            if (m_spec.type && m_spec.type != 's') {
+                return detail::format_integral_impl<typename FormatContext::iterator, CharT>(
+                    out, value ? 1ull : 0ull, false, m_spec
+                );
+            }
+            const char* text = value ? "true" : "false";
+            std::size_t len = value ? 4 : 5;
+            CharT buf[5];
+            for (std::size_t i = 0; i < len; ++i) buf[i] = CharT(text[i]);
+            return detail::write_aligned<
+                typename FormatContext::iterator,
+                CharT
+            >(out, buf, len, m_spec, '<');
+        }
+    private:
+        detail::format_spec m_spec{};
+    };
+
+    // integral (excluding bool and CharT itself)
+    template <typename T, typename CharT> requires (
+        std::integral<T> && !std::same_as<T, bool> && !std::same_as<T, CharT>
+    )
+    struct formatter<T, CharT> {
+        constexpr auto parse(basic_format_parse_context<CharT>& pc) noexcept {
+            m_spec = detail::parse_spec<CharT>(std::basic_string_view<CharT>(
+                pc.begin(),
+                pc.end()
+            ));
+            assert(
+                (m_spec.type == '\0' || m_spec.type == 'd' || m_spec.type == 'c' ||
+                 m_spec.type == 'b' || m_spec.type == 'B' || m_spec.type == 'o' ||
+                 m_spec.type == 'x' || m_spec.type == 'X') &&
+                "klibc::format: invalid presentation type for integer argument"
+            );
+            return pc.end();
+        }
+        template <class FormatContext>
+        constexpr auto format(
+            T value,
+            FormatContext& ctx
+        ) const noexcept -> typename FormatContext::iterator {
+            auto out = ctx.out();
+            if (m_spec.type == 'c') {
+                CharT buf[1] = { static_cast<CharT>(value) };
+                return detail::write_aligned<typename FormatContext::iterator, CharT>(
+                    out,
+                    buf,
+                    1,
+                    m_spec,
+                    '<'
+                );
+            }
+            if constexpr (std::is_signed_v<T>) {
+                using UT = std::make_unsigned_t<T>;
+                bool negative = value < 0;
+                UT magnitude = negative
+                    ? static_cast<UT>(0) - static_cast<UT>(value)
+                    : static_cast<UT>(value);
+                return detail::format_integral_impl<typename FormatContext::iterator, CharT>(
+                    out, static_cast<unsigned long long>(magnitude), negative, m_spec
+                );
+            } else {
+                return detail::format_integral_impl<typename FormatContext::iterator, CharT>(
+                    out, static_cast<unsigned long long>(value), false, m_spec
+                );
+            }
+        }
+    private:
+        detail::format_spec m_spec{};
+    };
+
+    // floating point (fixed-point only)
+    template <typename T, typename CharT> requires std::floating_point<T>
+    struct formatter<T, CharT> {
+        constexpr auto parse(basic_format_parse_context<CharT>& pc) noexcept {
+            m_spec = detail::parse_spec<CharT>(std::basic_string_view<CharT>(pc.begin(), pc.end()));
+            assert(
+                (m_spec.type == '\0' || m_spec.type == 'f' || m_spec.type == 'F') &&
+                "klibc::format: only fixed-point ('f'/'F') "
+                "floating-point presentation is supported"
+            );
+            return pc.end();
+        }
+        template <class FormatContext>
+        constexpr auto format(
+            T value,
+            FormatContext& ctx
+        ) const noexcept -> typename FormatContext::iterator {
+            return detail::format_float_impl<typename FormatContext::iterator, CharT>(
+                ctx.out(),
+                value,
+                m_spec
+            );
+        }
+    private:
+        detail::format_spec m_spec{};
+    };
+
+    // C string
+    template <typename CharT>
+    struct formatter<const CharT*, CharT> {
+        constexpr auto parse(basic_format_parse_context<CharT>& pc) noexcept {
+            m_spec = detail::parse_spec<CharT>(std::basic_string_view<CharT>(pc.begin(), pc.end()));
+            assert((m_spec.type == '\0' || m_spec.type == 's') &&
+                "klibc::format: invalid presentation type for string argument");
+            return pc.end();
+        }
+        template <class FormatContext>
+        constexpr auto format(
+            const CharT* value,
+            FormatContext& ctx
+        ) const noexcept -> typename FormatContext::iterator {
+            assert(value && "klibc::format: null C-string argument");
+            std::basic_string_view<CharT> sv(value);
+            if (m_spec.precision != detail::no_precision && m_spec.precision < sv.size())
+                sv = sv.substr(0, m_spec.precision);
+            return detail::write_aligned<typename FormatContext::iterator, CharT>(
+                ctx.out(),
+                sv.data(),
+                sv.size(),
+                m_spec,
+                '<'
+            );
+        }
+    private:
+        detail::format_spec m_spec{};
+    };
+
+    // string literal / char array
+    template <typename CharT, std::size_t N>
+    struct formatter<CharT[N], CharT> : formatter<const CharT*, CharT> {
+        template <class FormatContext>
+        constexpr auto format(
+            const CharT (&value)[N],
+            FormatContext& ctx
+        ) const noexcept -> typename FormatContext::iterator {
+            return formatter<const CharT*, CharT>::format(static_cast<const CharT*>(value), ctx);
+        }
+    };
+
+    // string_view
+    template <typename CharT>
+    struct formatter<std::basic_string_view<CharT>, CharT> {
+        constexpr auto parse(basic_format_parse_context<CharT>& pc) noexcept {
+            m_spec = detail::parse_spec<CharT>(std::basic_string_view<CharT>(
+                pc.begin(),
+                pc.end()
+            ));
+            return pc.end();
+        }
+        template <class FormatContext>
+        constexpr auto format(
+            std::basic_string_view<CharT> value,
+            FormatContext& ctx
+        ) const noexcept -> typename FormatContext::iterator {
+            if (m_spec.precision != detail::no_precision && m_spec.precision < value.size())
+                value = value.substr(0, m_spec.precision);
+            return detail::write_aligned<typename FormatContext::iterator, CharT>(
+                ctx.out(),
+                value.data(),
+                value.size(),
+                m_spec,
+                '<'
+            );
+        }
+    private:
+        detail::format_spec m_spec{};
+    };
+
+    // klibc::basic_string
+    template <typename CharT, typename Traits, typename Alloc>
+    struct formatter<klibc::basic_string<CharT, Traits, Alloc>, CharT>
+        : formatter<std::basic_string_view<CharT>, CharT>
+    {
+        template <class FormatContext>
+        constexpr auto format(
+            const klibc::basic_string<CharT, Traits, Alloc>& value,
+            FormatContext& ctx
+        ) const noexcept -> typename FormatContext::iterator
+        {
+            return formatter<std::basic_string_view<CharT>, CharT>::format(
+                std::basic_string_view<CharT>(value.data(), value.size()), ctx
+            );
+        }
+    };
+
+    // pointers
+    template <typename CharT>
+    struct formatter<const void*, CharT> {
+        constexpr auto parse(basic_format_parse_context<CharT>& pc) noexcept {
+            m_spec = detail::parse_spec<CharT>(std::basic_string_view<CharT>(pc.begin(), pc.end()));
+            assert((m_spec.type == '\0' || m_spec.type == 'p') &&
+                "klibc::format: invalid presentation type for pointer argument");
+            return pc.end();
+        }
+        template <class FormatContext>
+        constexpr auto format(
+            const void* value,
+            FormatContext& ctx
+        ) const noexcept -> typename FormatContext::iterator {
+            return detail::format_pointer_impl<typename FormatContext::iterator, CharT>(ctx.out(), value, m_spec);
+        }
+    private:
+        detail::format_spec m_spec{};
+    };
+
+    template <typename CharT>
+    struct formatter<void*, CharT> : formatter<const void*, CharT> {};
+
+    template <typename CharT>
+    struct formatter<std::nullptr_t, CharT> : formatter<const void*, CharT> {
+        template <class FormatContext>
+        constexpr auto format(
+            std::nullptr_t,
+            FormatContext& ctx
+        ) const noexcept -> typename FormatContext::iterator {
+            return formatter<const void*, CharT>::format(nullptr, ctx);
+        }
+    };
+
+    namespace detail {
+        template <typename CharT, typename Context>
+        constexpr void vformat_to_impl(
+            std::basic_string_view<CharT> fmt,
+            Context& ctx,
+            basic_format_args<Context> args
+        ) {
+            auto out = ctx.out();
+
+            const CharT* it = fmt.data();
+            const CharT* last = fmt.data() + fmt.size();
+            std::size_t autoIdx = 0;
+            bool autoUsed = false, manualUsed = false;
+
+            while (it != last) {
+                CharT c = *it;
+
+                if (c != CharT('{') && c != CharT('}')) {
+                    *out++ = c;
+                    ++it;
+                    continue;
+                }
+                if (c == CharT('}')) {
+                    assert(it + 1 != last && *(it + 1) == CharT('}') &&
+                        "klibc::format: unmatched '}' in format string");
+                    *out++ = CharT('}');
+                    it += 2;
+                    continue;
+                }
+
+                ++it; // consume '{'
+                assert(it != last && "klibc::format: unterminated '{' in format string");
+                if (*it == CharT('{')) {
+                    *out++ = CharT('{');
+                    ++it;
+                    continue;
+                }
+
+                std::size_t argId;
+                if (*it >= CharT('0') && *it <= CharT('9')) {
+                    std::size_t id = 0;
+                    while (it != last && *it >= CharT('0') && *it <= CharT('9')) {
+                        id = id * 10 + static_cast<std::size_t>(*it - CharT('0'));
+                        ++it;
+                    }
+                    argId = id;
+                    manualUsed = true;
+                    assert(!autoUsed && "klibc::format: cannot mix manual and automatic argument indexing");
+                } else {
+                    argId = autoIdx++;
+                    autoUsed = true;
+                    assert(!manualUsed && "klibc::format: cannot mix manual and automatic argument indexing");
+                }
+
+                std::basic_string_view<CharT> spec;
+                if (it != last && *it == CharT(':')) {
+                    ++it;
+                    const CharT* specBegin = it;
+                    while (it != last && *it != CharT('}')) ++it;
+                    spec = std::basic_string_view<CharT>(specBegin, static_cast<std::size_t>(it - specBegin));
+                }
+                assert(it != last && *it == CharT('}') && "klibc::format: expected '}' in format string");
+                ++it;
+
+                ctx.advance_to(out);
+                basic_format_arg<Context> arg = args.get(argId);
+                assert(static_cast<bool>(arg) && "klibc::format: argument index out of range");
+                arg.format(spec, ctx);
+                out = ctx.out();
+            }
+
+            ctx.advance_to(out);
+        }
+    }
+
+    // ==================== public API ====================
+    template <typename OutputIt>
+    struct format_to_n_result {
+        OutputIt out;
+        std::iter_difference_t<OutputIt> size;
+    };
+
+    template <typename OutputIt, typename CharT>
+    constexpr OutputIt vformat_to(
+        OutputIt out,
+        std::basic_string_view<CharT> fmt,
+        format_args_t<OutputIt, CharT> args
+    ) noexcept {
+        basic_format_context<OutputIt, CharT> ctx(out, args);
+        detail::vformat_to_impl<CharT>(fmt, ctx, args);
+        return ctx.out();
+    }
+
+    template <typename OutputIt, typename... Args>
+   constexpr OutputIt format_to(
+        OutputIt out,
+        format_string<Args...> fmt,
+        Args&&... args
+    ) noexcept {
+        using Context = basic_format_context<OutputIt, char>;
+        auto store = detail::make_format_args_store<Context>(args...);
+        basic_format_args<Context> fargs(store);
+        Context ctx(out, fargs);
+        detail::vformat_to_impl<char>(fmt.get(), ctx, fargs);
+        return ctx.out();
+    }
+
+    template <typename OutputIt, typename... Args>
+    constexpr format_to_n_result<OutputIt> format_to_n(
+        OutputIt out,
+        std::iter_difference_t<OutputIt> n,
+        format_string<Args...> fmt,
+        Args&&... args
+    ) noexcept {
+        using Trunc = detail::truncating_iterator<OutputIt, char>;
+        using Context = basic_format_context<Trunc, char>;
+        auto store = detail::make_format_args_store<Context>(args...);
+        basic_format_args<Context> fargs(store);
+        Trunc trunc(out, n < 0 ? 0 : static_cast<std::size_t>(n));
+        Context ctx(trunc, fargs);
+        detail::vformat_to_impl<char>(fmt.get(), ctx, fargs);
+        auto result = ctx.out();
+        return { result.base(), static_cast<std::iter_difference_t<OutputIt>>(result.count()) };
+    }
+
+    template <typename... Args>
+    constexpr std::size_t formatted_size(
+        format_string<Args...> fmt,
+        Args&&... args
+    ) noexcept {
+        using Counter = detail::counting_iterator<char>;
+        using Context = basic_format_context<Counter, char>;
+        auto store = detail::make_format_args_store<Context>(args...);
+        basic_format_args<Context> fargs(store);
+        std::size_t n = 0;
+        Counter counter(&n);
+        Context ctx(counter, fargs);
+        detail::vformat_to_impl<char>(fmt.get(), ctx, fargs);
+        return n;
+    }
+
+    template <typename... Args>
+    [[nodiscard]] constexpr klibc::string format(
+        format_string<Args...> fmt,
+        Args&&... args
+    ) {
+        klibc::string result;
+        format_to(std::back_inserter(result), fmt, std::forward<Args>(args)...);
+        return result;
+    }
+
+    [[nodiscard]] constexpr inline klibc::string vformat(
+        std::string_view fmt,
+        format_args args
+    ) {
+        klibc::string result;
+        vformat_to(std::back_inserter(result), fmt, args);
+        return result;
+    }
+
+    template <typename Context = format_context, typename... Args>
+    constexpr auto make_format_args(const Args&... args) noexcept {
+        return detail::make_format_args_store<Context>(args...);
+    }
 }
